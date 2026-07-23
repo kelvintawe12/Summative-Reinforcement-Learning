@@ -68,6 +68,47 @@ class DynamicsConfig:
     jam_cooldown_steps: int = 6          # steps a jammed bin stays offline
 
 
+@dataclass(frozen=True)
+class RewardConfig:
+    """Tunable reward-shaping magnitudes.
+
+    Lifted out of the environment body so the reward function is explicitly
+    parameterized (not arbitrary hardcoded constants) and can be swept or
+    ablated. Defaults are the *rebalanced* values: relative to the initial
+    design they (a) charge scan energy, (b) strengthen the immediate
+    correct-sort signal, and (c) penalize rejecting valuable material more
+    heavily -- three changes that together remove the "reject everything" safe
+    local optimum an undertrained agent otherwise falls into, while keeping
+    the delayed ship-out value the dominant reward term so the task remains a
+    genuine credit-assignment MDP.
+    """
+
+    # Immediate shaping on a correct sort, as a fraction of realized value
+    # added. Raised from 0.05 -> 0.12 so sorting a valuable item beats the
+    # safe +1.0 reject even before the (larger) ship-out payoff lands.
+    sort_shaping_coef: float = 0.12
+
+    # Reward for correctly rejecting a mostly-contaminant item.
+    reject_correct_reward: float = 1.0
+    # Penalty coefficient for rejecting valuable material: -coef * mass *
+    # valuable_fraction. Raised from 0.5 -> 1.2 so blanket-rejecting is a
+    # clear loss on anything worth sorting.
+    reject_wasted_coef: float = 1.2
+
+    # Scan energy is now charged to reward: -scan_cost_coef * scan_energy_cost
+    # per scan (previously 0.0, i.e. free). Small, so scanning stays viable
+    # when genuinely useful but is no longer spammable.
+    scan_cost_coef: float = 0.10
+    scan_unavailable_penalty: float = 0.2   # extra penalty for scanning with no energy
+
+    # Penalties (magnitudes; applied as negatives).
+    overflow_coef: float = 2.0              # -coef * overflow_mass
+    jam_failure_penalty: float = 3.0        # routing to a jammed bin
+    jam_triggered_penalty: float = 1.0      # a sort that causes a jam
+    forced_reject_penalty: float = 1.0      # base penalty when stalling forces a reject
+    shutdown_penalty: float = 10.0          # all bins jammed simultaneously
+
+
 def value_multiplier(
     fill_fraction: float,
     theta: float = DynamicsConfig.decay_start_fraction,

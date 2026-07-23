@@ -67,6 +67,7 @@ from gymnasium import spaces
 
 from environment.dynamics import (
     DynamicsConfig,
+    RewardConfig,
     value_multiplier,
     sensor_noise_sigma,
     contamination_penalty_factor,
@@ -139,6 +140,7 @@ class WasteSegregationEnv(gym.Env):
         item_mass_range: tuple[float, float] = (0.5, 3.0),
         category_probs: Optional[np.ndarray] = None,
         dynamics_config: Optional[DynamicsConfig] = None,
+        reward_config: Optional[RewardConfig] = None,
         render_mode: Optional[str] = None,
         seed: Optional[int] = None,
     ) -> None:
@@ -151,6 +153,7 @@ class WasteSegregationEnv(gym.Env):
         self.scan_energy_cost = scan_energy_cost
         self.item_mass_range = item_mass_range
         self.cfg = dynamics_config if dynamics_config is not None else DynamicsConfig()
+        self.rcfg = reward_config if reward_config is not None else RewardConfig()
         self.render_mode = render_mode
 
         self.action_space = spaces.Discrete(N_ACTIONS)
@@ -276,8 +279,8 @@ class WasteSegregationEnv(gym.Env):
 
         # Facility shutdown: every bin simultaneously jammed.
         if np.all(self.bin_jam_cooldown > 0):
-            reward -= 10.0
-            breakdown["shutdown_penalty"] = -10.0
+            reward -= self.rcfg.shutdown_penalty
+            breakdown["shutdown_penalty"] = -self.rcfg.shutdown_penalty
             terminated = True
 
         truncated = self.step_count >= self.max_steps
@@ -303,8 +306,9 @@ class WasteSegregationEnv(gym.Env):
         if self.bin_jam_cooldown[b] > 0:
             # Jammed bins reject any material routed to them.
             self.episode_stats["incorrect_sorts"] += 1
-            breakdown["jam_failure_penalty"] = -3.0
-            return -3.0, breakdown
+            penalty = -self.rcfg.jam_failure_penalty
+            breakdown["jam_failure_penalty"] = penalty
+            return penalty, breakdown
 
         mass = self.current_item_mass
         fill_before = self.bin_fill[b] / self.bin_capacity
@@ -314,7 +318,7 @@ class WasteSegregationEnv(gym.Env):
 
         reward = 0.0
         if overflow_mass > 1e-9:
-            overflow_penalty = -2.0 * overflow_mass
+            overflow_penalty = -self.rcfg.overflow_coef * overflow_mass
             reward += overflow_penalty
             breakdown["overflow_penalty"] = overflow_penalty
 
@@ -335,9 +339,11 @@ class WasteSegregationEnv(gym.Env):
             self.bin_contam_mass[b] += contaminant_mass
             self.bin_total_mass[b] += accepted_mass
 
-            # Small immediate shaping signal; the dominant reward for a good
-            # sort is realized later, at ship-out.
-            shaping = 0.05 * value_added
+            # Immediate shaping signal; the dominant reward for a good sort is
+            # still realized later, at ship-out, but this term is sized so a
+            # correct sort of a valuable item beats the safe reject reward
+            # even before ship-out (removing the "reject everything" trap).
+            shaping = self.rcfg.sort_shaping_coef * value_added
             reward += shaping
             breakdown["sort_shaping_reward"] = shaping
 
@@ -361,8 +367,8 @@ class WasteSegregationEnv(gym.Env):
             if self._rng.random() < p_jam:
                 self.bin_jam_cooldown[b] = self.cfg.jam_cooldown_steps
                 self.episode_stats["jams_triggered"] += 1
-                reward -= 1.0
-                breakdown["jam_triggered_penalty"] = -1.0
+                reward -= self.rcfg.jam_triggered_penalty
+                breakdown["jam_triggered_penalty"] = -self.rcfg.jam_triggered_penalty
 
         return reward, breakdown
 
@@ -371,10 +377,10 @@ class WasteSegregationEnv(gym.Env):
         valuable_frac = float(np.sum(self.current_item_true[:4]))
         breakdown: dict[str, float] = {}
         if contaminant_frac >= 0.5:
-            reward = 1.0
-            breakdown["correct_reject_reward"] = 1.0
+            reward = self.rcfg.reject_correct_reward
+            breakdown["correct_reject_reward"] = reward
         else:
-            reward = -0.5 * self.current_item_mass * valuable_frac
+            reward = -self.rcfg.reject_wasted_coef * self.current_item_mass * valuable_frac
             breakdown["wasted_material_penalty"] = reward
         return reward, breakdown
 
@@ -383,7 +389,9 @@ class WasteSegregationEnv(gym.Env):
         breakdown: dict[str, float] = {}
         if self.consecutive_holds > self.cfg.max_consecutive_holds:
             # Conveyor cannot wait indefinitely: item is force-rejected.
-            penalty = -1.0 - stall_penalty(self.consecutive_holds, beta=self.cfg.stall_beta)
+            penalty = -self.rcfg.forced_reject_penalty - stall_penalty(
+                self.consecutive_holds, beta=self.cfg.stall_beta
+            )
             breakdown["forced_reject_penalty"] = penalty
             self.consecutive_holds = 0
             self._spawn_item()
@@ -407,13 +415,17 @@ class WasteSegregationEnv(gym.Env):
             self.current_item_obs = self._noisy_observation(
                 self.current_item_true, reduced_sigma
             )
-            breakdown["scan_energy_cost"] = -self.scan_energy_cost * 0.0  # informational
+            # Scanning now costs reward (was free), so it is only worth it when
+            # the reduced uncertainty genuinely improves the next decision.
+            energy_cost = -self.rcfg.scan_cost_coef * self.scan_energy_cost
+            reward += energy_cost
+            breakdown["scan_energy_cost"] = energy_cost
         else:
-            reward -= 0.2
-            breakdown["scan_unavailable_penalty"] = -0.2
+            reward -= self.rcfg.scan_unavailable_penalty
+            breakdown["scan_unavailable_penalty"] = -self.rcfg.scan_unavailable_penalty
 
         if self.consecutive_holds > self.cfg.max_consecutive_holds:
-            penalty = -1.0
+            penalty = -self.rcfg.forced_reject_penalty
             reward += penalty
             breakdown["forced_reject_penalty"] = penalty
             self.consecutive_holds = 0
