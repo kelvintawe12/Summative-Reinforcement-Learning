@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# uv / virtualenv
+.venv/
+
+# OS
+.DS_Store
+
+# Trained artifacts and generated results are produced on Colab and synced
+# back in. These ARE tracked and committed into the repo, so the marker can
+# `uv run main.py` and reproduce the analysis straight after cloning:
+#   - models/**/*.zip, models/**/*.pt   (trained checkpoints)
+#   - logs/**/*.csv                      (per-episode metric logs)
+#   - results/**                         (tables + plots)
+# Do NOT add ignore rules for those paths.
+
+# TensorBoard event files are large and redundant (all metrics we need are in
+# the CSV logs), so they stay ignored.
+**/events.out.tfevents.*
+
+# Report build artifacts
+report/*.aux
+report/*.log
