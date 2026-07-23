@@ -1,0 +1,11 @@
+run_id,total_timesteps,learning_rate,gamma,hidden_size,baseline,entropy_coef,episodes_completed,mean_reward_last_10pct,best_episode_reward,final_episode_reward
+reinforce_01,60000,0.001,0.99,64,True,0.0,308,419.52,652.84,277.49
+reinforce_02,60000,0.0005,0.99,64,True,0.0,313,183.01,365.27,182.4
+reinforce_03,60000,0.0001,0.99,64,True,0.0,309,45.13,223.68,185.45
+reinforce_04,60000,0.001,0.99,128,True,0.0,305,665.14,1005.05,584.48
+reinforce_05,60000,0.001,0.95,64,True,0.0,313,637.34,976.69,738.92
+reinforce_06,60000,0.001,0.999,64,True,0.0,312,187.74,397.54,271.07
+reinforce_07,60000,0.001,0.99,64,False,0.0,315,451.68,797.32,472.74
+reinforce_08,60000,0.001,0.99,64,True,0.01,312,364.38,703.19,304.16
+reinforce_09,60000,0.001,0.99,64,True,0.05,309,325.44,627.01,454.84
+reinforce_10,60000,0.002,0.99,64,True,0.0,308,706.9,1083.95,713.81
