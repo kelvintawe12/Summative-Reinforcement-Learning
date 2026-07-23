@@ -29,12 +29,15 @@ from __future__ import annotations
 
 import os
 import uuid
+from pathlib import Path
 from typing import Optional
 
 from environment.custom_env import N_ACTIONS, WasteSegregationEnv
 
 try:
     from fastapi import FastAPI, HTTPException
+    from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import FileResponse
     from pydantic import BaseModel
 except ImportError as exc:  # pragma: no cover - only hit without the serve extra
     raise SystemExit(
@@ -49,6 +52,18 @@ app = FastAPI(
     description="Drive WasteSegregationEnv over HTTP as JSON for a web/mobile frontend.",
     version="1.0.0",
 )
+
+# Allow a separate dev front-end (e.g. a local Vite server) to call the API.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Path to the Three.js web dashboard shipped with the project.
+_WEB_ROOT = Path(__file__).resolve().parent / "web"
 
 # In-memory session store. For a production deployment this would be replaced
 # by a per-connection actor or a Redis-backed store; kept in-process here to
@@ -86,6 +101,12 @@ def _load_best_agent():
     algo, model_path = found
     _AGENT = load_agent(algo, model_path)
     return _AGENT
+
+
+@app.get("/")
+def dashboard() -> FileResponse:
+    """Serve the Three.js web dashboard."""
+    return FileResponse(_WEB_ROOT / "index.html")
 
 
 @app.post("/session")

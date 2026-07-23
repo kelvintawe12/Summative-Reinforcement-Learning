@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <title>Waste Segregation Facility — Live 3D Dashboard</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+  <style>
+    :root {
+      --bg: #14161b;
+      --panel: #1c1f26;
+      --panel2: #252930;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --organic: #6ea85a;
+      --plastic: #568cd2;
+      --metal: #aaaaaa;
+      --glass: #5ac8be;
+      --contaminant: #a85a5a;
+      --jam: #ff4d4d;
+      --energy: #d4b85a;
+    }
+    body { margin: 0; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+    #canvas-container { width: 100vw; height: 100vh; }
+
+    #hud {
+      position: absolute; top: 12px; left: 12px; width: 340px;
+      background: rgba(20, 22, 27, 0.96); padding: 14px; border-radius: 10px;
+      border: 1px solid #2f333b; pointer-events: none; line-height: 1.35;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    #hud h1 { margin: 0 0 10px; font-size: 16px; color: #fff; }
+    .row { display: flex; justify-content: space-between; font-size: 13px; margin: 3px 0; }
+    .row .label { color: var(--muted); }
+    .row .value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .bar-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
+    .bar-row .label { width: 50px; color: var(--muted); }
+    .bar-track { flex: 1; height: 10px; background: #2f333b; border-radius: 5px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 5px; transition: width 0.25s ease; }
+    .bar-fill.step { background: #4a6fcb; }
+    .bar-fill.energy { background: var(--energy); }
+
+    #legend { margin-top: 10px; padding-top: 10px; border-top: 1px solid #2f333b; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; font-size: 11px; }
+    .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+
+    #log {
+      margin-top: 10px; max-height: 150px; overflow-y: auto; font-size: 11px;
+      background: var(--panel); border-radius: 6px; padding: 6px; pointer-events: auto;
+    }
+    .log-entry { display: grid; grid-template-columns: 28px 1fr 48px 48px; gap: 4px; padding: 2px 0; border-bottom: 1px solid #2a2d35; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-step { color: var(--muted); }
+    .log-action { color: #fff; }
+    .log-reward { text-align: right; }
+    .log-total { text-align: right; color: var(--muted); }
+
+    #controls {
+      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
+      display: flex; flex-direction: column; gap: 8px; align-items: center;
+      background: rgba(20, 22, 27, 0.96); padding: 12px; border-radius: 10px;
+      border: 1px solid #2f333b; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    #top-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+    #action-buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    button {
+      background: var(--panel2); color: var(--text); border: 1px solid #3c4149;
+      border-radius: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px;
+      transition: transform 0.08s, background 0.15s, box-shadow 0.15s;
+      pointer-events: auto;
+    }
+    button:hover { background: #2f333b; }
+    button.primary { background: #4a6fcb; border-color: #5a7fdb; }
+    button.primary:hover { background: #5a7fdb; }
+    button.active { transform: translateY(-2px); box-shadow: 0 0 0 2px rgba(255,255,255,0.25); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    button.sort-organic { border-color: var(--organic); }
+    button.sort-plastic { border-color: var(--plastic); }
+    button.sort-metal { border-color: var(--metal); }
+    button.sort-glass { border-color: var(--glass); }
+    button.reject { border-color: #888; }
+    button.hold { border-color: #d4b85a; }
+    button.scan { border-color: #7e7ee0; }
+
+    #speed-wrap { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+    #speed { width: 90px; }
+
+    #action-toast {
+      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(20, 22, 27, 0.95); border: 1px solid #3c4149; border-radius: 8px;
+      padding: 8px 16px; font-size: 14px; display: none; pointer-events: none; z-index: 20;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    }
+    #action-toast .action-name { font-weight: 600; }
+    #action-toast .reward { color: #7ee07e; margin-left: 8px; font-family: ui-monospace, monospace; }
+
+    #loading {
+      position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column;
+      align-items: center; justify-content: center; color: var(--muted); z-index: 50;
+    }
+    #loading.hidden { display: none; }
+    .spinner { width: 36px; height: 36px; border: 3px solid #2f333b; border-top-color: #4a6fcb; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div>Starting environment…</div>
+  <div id="canvas-container"></div>
+
+  <div id="hud">
+    <h1>Waste Segregation Facility</h1>
+    <div class="row"><span class="label">Step</span><span class="value" id="step">-</span></div>
+    <div class="row"><span class="label">Total reward</span><span class="value" id="reward">-</span></div>
+    <div class="row"><span class="label">Last action</span><span class="value" id="last-action">-</span></div>
+    <div class="bar-row"><span class="label">Episode</span><div class="bar-track"><div class="bar-fill step" id="step-bar"></div></div></div>
+    <div class="bar-row"><span class="label">Energy</span><div class="bar-track"><div class="bar-fill energy" id="energy-bar"></div></div></div>
+    <div class="row"><span class="label">Consecutive holds</span><span class="value" id="holds">-</span></div>
+    <div class="row"><span class="label">Episode stats</span><span class="value" id="stats">-</span></div>
+    <div id="legend">
+      <div><span class="legend-dot" style="background:var(--organic)"></span>organic</div>
+      <div><span class="legend-dot" style="background:var(--plastic)"></span>plastic</div>
+      <div><span class="legend-dot" style="background:var(--metal)"></span>metal</div>
+      <div><span class="legend-dot" style="background:var(--glass)"></span>glass</div>
+      <div><span class="legend-dot" style="background:var(--contaminant)"></span>contaminant</div>
+      <div><span class="legend-dot" style="background:var(--jam)"></span>jammed</div>
+    </div>
+    <div id="log"></div>
+  </div>
+
+  <div id="controls">
+    <div id="top-controls">
+      <button id="btn-reset">Reset</button>
+      <button id="btn-predict" class="primary">Predict (best agent)</button>
+      <button id="btn-auto">Auto run</button>
+      <div id="speed-wrap"><span>Speed</span><input id="speed" type="range" min="150" max="1200" value="450"><span id="speed-val">450ms</span></div>
+    </div>
+    <div id="action-buttons">
+      <button class="action sort-organic" data-action="0">Organic</button>
+      <button class="action sort-plastic" data-action="1">Plastic</button>
+      <button class="action sort-metal" data-action="2">Metal</button>
+      <button class="action sort-glass" data-action="3">Glass</button>
+      <button class="action reject" data-action="4">Reject</button>
+      <button class="action hold" data-action="5">Hold</button>
+      <button class="action scan" data-action="6">Scan</button>
+    </div>
+  </div>
+
+  <div id="action-toast"><span class="action-name">-</span><span class="reward">+0.00</span></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const BIN_NAMES = ['organic', 'plastic', 'metal', 'glass'];
+    const MATERIALS = ['organic', 'plastic', 'metal', 'glass', 'contaminant'];
+    const ACTION_NAMES = ['sort_organic','sort_plastic','sort_metal','sort_glass','reject','hold','scan_closely'];
+    const ACTION_LABELS = ['Sort Organic','Sort Plastic','Sort Metal','Sort Glass','Reject','Hold','Scan'];
+    const COLORS = {
+      organic: 0x6ea85a, plastic: 0x568cd2, metal: 0xaaaaaa, glass: 0x5ac8be,
+      contaminant: 0xa85a5a, conveyor: 0x2c3038, floor: 0x14161b, jam: 0xff4d4d,
+      landfill: 0x4a3f3f, scan: 0xffcc00
+    };
+
+    let sessionId = null;
+    let currentState = null;
+    let animating = false;
+    let autoRunning = false;
+    let autoTimeout = null;
+    let activeTween = null;
+    let autoInterval = 450;
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(COLORS.floor);
+    scene.fog = new THREE.Fog(COLORS.floor, 25, 70);
+
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 13, 24);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.5, -2);
+    controls.enableDamping = true;
+    controls.update();
+
+    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+    scene.add(ambient);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(10, 20, 12);
+    dir.castShadow = true;
+    dir.shadow.mapSize.width = 2048;
+    dir.shadow.mapSize.height = 2048;
+    dir.shadow.camera.left = -18; dir.shadow.camera.right = 18;
+    dir.shadow.camera.top = 18; dir.shadow.camera.bottom = -18;
+    scene.add(dir);
+    const fillLight = new THREE.DirectionalLight(0x8899aa, 0.3);
+    fillLight.position.set(-10, 8, -10);
+    scene.add(fillLight);
+
+    // Floor with subtle grid
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(60, 60),
+      new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.95, metalness: 0.05 })
+    );
+    floor.rotation.x = -Math.PI / 2;
+    floor.receiveShadow = true;
+    scene.add(floor);
+    const grid = new THREE.GridHelper(60, 60, 0x252930, 0x1a1c21);
+    grid.position.y = 0.01;
+    scene.add(grid);
+
+    // Conveyor belt
+    const belt = new THREE.Mesh(
+      new THREE.BoxGeometry(24, 0.35, 4.2),
+      new THREE.MeshStandardMaterial({ color: COLORS.conveyor, roughness: 0.7 })
+    );
+    belt.position.set(0, 0.175, -5);
+    belt.receiveShadow = true;
+    scene.add(belt);
+    // rollers
+    for (let i = -10; i <= 10; i += 2.5) {
+      const roller = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.18, 4.0, 12),
+        new THREE.MeshStandardMaterial({ color: 0x3c4149 })
+      );
+      roller.rotation.z = Math.PI / 2;
+      roller.position.set(i, 0.35, -5);
+      scene.add(roller);
+    }
+
+    // Bins
+    const binGroup = new THREE.Group();
+    scene.add(binGroup);
+    const binX = [-6.5, -2.2, 2.2, 6.5];
+    const binPositions = binX.map(x => new THREE.Vector3(x, 1.8, 0));
+    const binObjects = [];
+    BIN_NAMES.forEach((name, i) => {
+      const x = binX[i];
+      const color = COLORS[name];
+      // housing
+      const houseMat = new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.4 });
+      const house = new THREE.Mesh(new THREE.BoxGeometry(3.2, 3.8, 3.2), houseMat);
+      house.position.set(x, 2.05, 0);
+      // back wall
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(3.2, 3.8, 0.2),
+        new THREE.MeshStandardMaterial({ color: 0x2c3038 })
+      );
+      wall.position.set(x, 2.05, 1.6);
+      // fill
+      const fillMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.25 });
+      const fill = new THREE.Mesh(new THREE.BoxGeometry(2.9, 1, 2.9), fillMat);
+      fill.position.set(x, 0.55, 0);
+      fill.scale.y = 0.001;
+      fill.castShadow = true;
+      // contamination marker
+      const contamBar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.45, 1, 0.45),
+        new THREE.MeshStandardMaterial({ color: COLORS.contaminant, transparent: true, opacity: 0.9 })
+      );
+      contamBar.position.set(x + 1.9, 0.2, 0);
+      contamBar.scale.y = 0.001;
+      // jam flash
+      const jam = new THREE.Mesh(
+        new THREE.BoxGeometry(3.4, 4.0, 0.25),
+        new THREE.MeshBasicMaterial({ color: COLORS.jam, transparent: true, opacity: 0 })
+      );
+      jam.position.set(x, 2.05, -1.7);
+      binGroup.add(house, wall, fill, contamBar, jam);
+      binObjects.push({ name, house, fill, contamBar, jam, color });
+
+      // label
+      const sprite = makeLabel(name.toUpperCase(), colorToCss(color));
+      sprite.position.set(x, 4.3, 0);
+      binGroup.add(sprite);
+    });
+
+    // Landfill / reject chute
+    const landfill = new THREE.Mesh(
+      new THREE.BoxGeometry(2.8, 1.6, 2.8),
+      new THREE.MeshStandardMaterial({ color: COLORS.landfill, roughness: 0.8 })
+    );
+    landfill.position.set(10.8, 0.8, -5);
+    landfill.castShadow = true;
+    scene.add(landfill);
+    const landfillLabel = makeLabel('LANDFILL', '#b8a0a0');
+    landfillLabel.position.set(10.8, 2.3, -5);
+    scene.add(landfillLabel);
+    const landfillPos = new THREE.Vector3(10.8, 1.4, -5);
+
+    // Incoming item
+    const itemGroup = new THREE.Group();
+    scene.add(itemGroup);
+    const itemBaseY = 1.3;
+    const itemMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.75, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.1 })
+    );
+    itemMesh.position.set(1.5, itemBaseY, -5);
+    itemMesh.castShadow = true;
+    itemGroup.add(itemMesh);
+
+    const compColors = [COLORS.organic, COLORS.plastic, COLORS.metal, COLORS.glass, COLORS.contaminant];
+    const compBars = [];
+    MATERIALS.forEach((m, i) => {
+      const bar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.55, 1, 0.55),
+        new THREE.MeshStandardMaterial({ color: compColors[i] })
+      );
+      const angle = (i / 5) * Math.PI * 2;
+      bar.position.set(Math.cos(angle) * 1.7, 0.55, Math.sin(angle) * 1.7 - 5);
+      bar.scale.y = 0.001;
+      itemGroup.add(bar);
+      compBars.push(bar);
+    });
+    const itemLabel = makeLabel('INCOMING', '#ffffff');
+    itemLabel.position.set(1.5, 2.6, -5);
+    itemGroup.add(itemLabel);
+
+    // Scanner beam (hidden by default)
+    const scannerBeam = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.6, 0.6, 5, 16, 1, true),
+      new THREE.MeshBasicMaterial({ color: COLORS.scan, transparent: true, opacity: 0.55, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })
+    );
+    scannerBeam.position.set(1.5, 3.8, -5);
+    scannerBeam.visible = false;
+    scene.add(scannerBeam);
+
+    // Helpers
+    function fmt(n) { return Number(n).toFixed(2); }
+    function setText(id, text) { document.getElementById(id).textContent = text; }
+    function colorToCss(hex) { return '#' + new THREE.Color(hex).getHexString(); }
+    function makeLabel(text, color) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.font = 'bold 24px system-ui, sans-serif';
+      const w = ctx.measureText(text).width + 24;
+      canvas.width = w; canvas.height = 34;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath(); ctx.roundRect(0, 0, w, 34, 8); ctx.fill();
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, w / 2, 17);
+      const tex = new THREE.CanvasTexture(canvas);
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
+      sprite.scale.set((w / 34) * 0.9, 0.9, 1);
+      return sprite;
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        ...opts,
+        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) }
+      });
+      if (!res.ok) { const txt = await res.text(); throw new Error(`${res.status}: ${txt}`); }
+      return res.json();
+    }
+
+    function updateBars(s) {
+      const stepBar = document.getElementById('step-bar');
+      const energyBar = document.getElementById('energy-bar');
+      stepBar.style.width = `${(s.step / s.max_steps) * 100}%`;
+      energyBar.style.width = `${Math.max(0, (s.energy / s.energy_max) * 100)}%`;
+    }
+
+    function logAction(s, reward) {
+      if (!s.last_action) return;
+      const log = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `
+        <span class="log-step">${s.step}</span>
+        <span class="log-action">${s.last_action.replace(/_/g, ' ')}</span>
+        <span class="log-reward" style="color:${reward >= 0 ? '#7ee07e' : '#ff7e7e'}">${fmt(reward)}</span>
+        <span class="log-total">${fmt(s.total_reward)}</span>
+      `;
+      log.insertBefore(entry, log.firstChild);
+      while (log.children.length > 12) log.removeChild(log.lastChild);
+    }
+
+    function highlightAction(actionIdx) {
+      document.querySelectorAll('.action').forEach(b => b.classList.remove('active'));
+      const btn = document.querySelector(`.action[data-action="${actionIdx}"]`);
+      if (btn) {
+        btn.classList.add('active');
+        setTimeout(() => btn.classList.remove('active'), 220);
+      }
+    }
+
+    function showToastReward(actionIdx, reward) {
+      const toast = document.getElementById('action-toast');
+      toast.querySelector('.action-name').textContent = ACTION_LABELS[actionIdx];
+      const r = fmt(reward);
+      toast.querySelector('.reward').textContent = (reward >= 0 ? '+' : '') + r;
+      toast.querySelector('.reward').style.color = reward >= 0 ? '#7ee07e' : '#ff7e7e';
+      toast.style.display = 'block';
+      clearTimeout(toast._hide);
+      toast._hide = setTimeout(() => toast.style.display = 'none', 1200);
+    }
+
+    function renderState(s, stepData = null) {
+      currentState = s;
+      setText('step', `${s.step} / ${s.max_steps}`);
+      setText('reward', fmt(s.total_reward));
+      setText('last-action', s.last_action ? s.last_action.replace(/_/g, ' ') : '-');
+      setText('holds', s.consecutive_holds);
+      updateBars(s);
+
+      const stats = s.episode_stats || {};
+      setText('stats', `✓ ${stats.correct_sorts || 0}  ✗ ${stats.incorrect_sorts || 0}  ⚠ ${stats.jams_triggered || 0}  🚚 ${stats.shipouts || 0}`);
+
+      // Bins
+      s.bins.forEach((b, i) => {
+        const obj = binObjects[i];
+        const maxH = 3.6;
+        const fillH = Math.max(b.fill_fraction * maxH, 0.001);
+        obj.fill.scale.y = fillH;
+        obj.fill.position.y = 0.2 + fillH / 2;
+
+        const contamH = Math.max(b.contamination_fraction * maxH, 0.001);
+        obj.contamBar.scale.y = contamH;
+        obj.contamBar.position.y = 0.2 + contamH / 2;
+
+        if (b.jammed) {
+          obj.house.material.color.setHex(COLORS.jam);
+          obj.house.material.opacity = 0.75;
+        } else {
+          obj.house.material.color.setHex(obj.color);
+          obj.house.material.opacity = 0.4;
+        }
+      });
+
+      // Item composition bars
+      const comp = s.current_item?.observed_composition || {};
+      let maxComp = 0.0001;
+      MATERIALS.forEach(n => maxComp = Math.max(maxComp, comp[n] || 0));
+      let domIdx = 0;
+      compBars.forEach((bar, i) => {
+        const val = comp[MATERIALS[i]] || 0;
+        const h = Math.max((val / maxComp) * 2.2, 0.001);
+        bar.scale.y = h;
+        bar.position.y = 0.2 + h / 2;
+        bar.material.emissive.setHex(val > 1e-9 ? bar.material.color.getHex() : 0x000000);
+        bar.material.emissiveIntensity = 0.3;
+        if (val > (comp[MATERIALS[domIdx]] || 0)) domIdx = i;
+      });
+      itemMesh.material.color.setHex(compColors[domIdx]);
+      itemMesh.visible = true;
+
+      if (stepData) {
+        const actionIdx = stepData.action !== undefined ? stepData.action : ACTION_NAMES.indexOf(s.last_action);
+        highlightAction(actionIdx);
+        if (stepData.reward !== undefined) {
+          showToastReward(actionIdx, stepData.reward);
+          logAction(s, stepData.reward);
+        }
+      }
+
+      if (s.step >= s.max_steps) {
+        setText('last-action', (s.last_action ? s.last_action.replace(/_/g, ' ') : '-') + ' (episode done)');
+      }
+    }
+
+    function animateAction(action, fromItem, onComplete) {
+      if (activeTween) { activeTween = null; }
+      const duration = 420;
+      const startTime = performance.now();
+      const startPos = itemMesh.getWorldPosition(new THREE.Vector3());
+      let flyingItem = null;
+
+      if (action >= 0 && action < 4) {
+        // Sort to bin
+        const endPos = binPositions[action];
+        const color = COLORS[BIN_NAMES[action]];
+        flyingItem = itemMesh.clone();
+        flyingItem.material = itemMesh.material.clone();
+        flyingItem.material.color.setHex(color);
+        flyingItem.position.copy(startPos);
+        flyingItem.scale.setScalar(1);
+        scene.add(flyingItem);
+        itemMesh.visible = false;
+        activeTween = { type: 'fly', startTime, duration, startPos, endPos, flyingItem, onComplete };
+      } else if (action === 4) {
+        // Reject to landfill
+        flyingItem = itemMesh.clone();
+        flyingItem.material = itemMesh.material.clone();
+        flyingItem.material.color.setHex(0x555555);
+        flyingItem.position.copy(startPos);
+        scene.add(flyingItem);
+        itemMesh.visible = false;
+        activeTween = { type: 'fly', startTime, duration, startPos, endPos: landfillPos, flyingItem, onComplete };
+      } else if (action === 5) {
+        // Hold — bounce the item
+        activeTween = { type: 'hold', startTime, duration: 300, startY: itemMesh.position.y, onComplete };
+      } else if (action === 6) {
+        // Scan — beam and glow
+        scannerBeam.visible = true;
+        scannerBeam.position.set(startPos.x, 3.8, startPos.z);
+        itemMesh.material.emissive.setHex(COLORS.scan);
+        itemMesh.material.emissiveIntensity = 0.7;
+        activeTween = { type: 'scan', startTime, duration: 400, onComplete };
+      } else {
+        onComplete();
+      }
+    }
+
+    function updateTween(time) {
+      if (!activeTween) return true;
+      const elapsed = time - activeTween.startTime;
+      const t = Math.min(elapsed / activeTween.duration, 1);
+      const ease = 1 - (1 - t) * (1 - t);
+
+      if (activeTween.type === 'fly') {
+        const { startPos, endPos, flyingItem } = activeTween;
+        const p = new THREE.Vector3().lerpVectors(startPos, endPos, ease);
+        p.y += Math.sin(t * Math.PI) * 2.8;
+        flyingItem.position.copy(p);
+        flyingItem.rotation.y += 0.18;
+        const scale = t > 0.75 ? 1 - 0.75 * ((t - 0.75) / 0.25) : 1;
+        flyingItem.scale.setScalar(Math.max(0.25, scale));
+      } else if (activeTween.type === 'hold') {
+        itemMesh.position.y = activeTween.startY + 0.25 * Math.sin(t * Math.PI * 2);
+      } else if (activeTween.type === 'scan') {
+        scannerBeam.material.opacity = 0.45 + 0.25 * Math.sin(t * Math.PI * 6);
+        itemMesh.material.emissiveIntensity = 0.7 - 0.6 * t;
+      }
+
+      if (t >= 1) {
+        if (activeTween.flyingItem) {
+          scene.remove(activeTween.flyingItem);
+          itemMesh.visible = true;
+        }
+        if (activeTween.type === 'scan') {
+          scannerBeam.visible = false;
+          itemMesh.material.emissive.setHex(0x000000);
+        }
+        const cb = activeTween.onComplete;
+        activeTween = null;
+        cb && cb();
+        return true;
+      }
+      return false;
+    }
+
+    async function createSession() {
+      stopAuto();
+      animating = false; activeTween = null;
+      document.getElementById('log').innerHTML = '';
+      document.getElementById('loading').classList.remove('hidden');
+      const data = await api('/session', { method: 'POST' });
+      sessionId = data.session_id;
+      currentState = data.state;
+      renderState(currentState);
+      document.getElementById('loading').classList.add('hidden');
+    }
+
+    async function step(action) {
+      if (animating || !sessionId || (currentState && (currentState.step >= currentState.max_steps))) return;
+      animating = true;
+      const fromItem = currentState.current_item;
+      const data = await api(`/session/${sessionId}/step`, { method: 'POST', body: JSON.stringify({ action }) });
+      await new Promise(resolve => animateAction(action, fromItem, resolve));
+      renderState(data.state, { action, reward: data.reward });
+      animating = false;
+    }
+
+    async function predict() {
+      if (animating || !sessionId || (currentState && (currentState.step >= currentState.max_steps))) return;
+      animating = true;
+      const fromItem = currentState.current_item;
+      const data = await api(`/session/${sessionId}/predict`, { method: 'POST' });
+      await new Promise(resolve => animateAction(data.action, fromItem, resolve));
+      renderState(data.state, { action: data.action, reward: data.reward });
+      animating = false;
+    }
+
+    async function autoStep() {
+      if (!autoRunning || !sessionId) return;
+      if (currentState && currentState.step >= currentState.max_steps) { stopAuto(); return; }
+      if (!animating) {
+        try {
+          await predict();
+        } catch (e) { stopAuto(); console.error(e); }
+      }
+      if (autoRunning) {
+        autoTimeout = setTimeout(autoStep, autoInterval);
+      }
+    }
+
+    function stopAuto() {
+      autoRunning = false;
+      if (autoTimeout) { clearTimeout(autoTimeout); autoTimeout = null; }
+      document.getElementById('btn-auto').textContent = 'Auto run';
+    }
+    function toggleAuto() {
+      if (autoRunning) { stopAuto(); }
+      else {
+        autoRunning = true;
+        document.getElementById('btn-auto').textContent = 'Stop auto';
+        autoStep();
+      }
+    }
+
+    // UI wiring
+    document.getElementById('btn-reset').onclick = createSession;
+    document.getElementById('btn-predict').onclick = predict;
+    document.getElementById('btn-auto').onclick = toggleAuto;
+    document.querySelectorAll('.action').forEach(btn => {
+      btn.onclick = () => step(parseInt(btn.dataset.action));
+    });
+    document.getElementById('speed').addEventListener('input', e => {
+      autoInterval = parseInt(e.target.value);
+      document.getElementById('speed-val').textContent = autoInterval + 'ms';
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === ' ') { e.preventDefault(); toggleAuto(); }
+      if (e.key === 'r' || e.key === 'R') createSession();
+      if (e.key === 'p' || e.key === 'P') predict();
+    });
+
+    function animate(time) {
+      requestAnimationFrame(animate);
+      controls.update();
+      updateTween(time);
+      // idle hover for item
+      if (!activeTween || (activeTween && activeTween.type !== 'hold' && activeTween.type !== 'scan')) {
+        itemMesh.position.y = itemBaseY + 0.1 * Math.sin(time / 500);
+      }
+      // jam pulse
+      if (currentState && currentState.bins) {
+        currentState.bins.forEach((b, i) => {
+          const obj = binObjects[i];
+          const pulse = 0.55 + 0.25 * Math.sin(time / 120);
+          obj.jam.material.opacity = b.jammed ? pulse : 0;
+        });
+      }
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    createSession().catch(err => { console.error(err); document.getElementById('loading').textContent = 'Error: ' + err.message; });
+  </script>
+</body>
+</html>

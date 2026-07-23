@@ -266,12 +266,13 @@ never trained on (`high_contam`, `plastic_surge`, `uniform`), writing
 The environment serializes its full state to JSON via
 `WasteSegregationEnv.to_json()`, and `serve.py` exposes it over a FastAPI REST
 service (reset/step/predict), so a browser or mobile app can render and drive
-the facility with no Python or Pygame dependency on the client:
+the facility with no Python or Pygame dependency on the client. A Three.js/WebGL
+dashboard is included at `web/index.html` and served from the root URL:
 
 ```bash
 uv sync --extra serve
 uv run uvicorn serve:app --reload
-# open http://127.0.0.1:8000/docs for the interactive API explorer
+# open http://127.0.0.1:8000 for the 3D dashboard, or /docs for the API explorer
 ```
 
 ## Testing
