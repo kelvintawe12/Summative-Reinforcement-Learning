@@ -149,9 +149,25 @@ def build_notebook(algo: str) -> nbf.NotebookNode:
         f"print(\"\\nAll {cfg['title']} runs complete.\")"
     ))
 
+    # --- Cell 4b: visualize training ---
+    cells.append(nbf.v4.new_markdown_cell(
+        f"## 5. Visualize training\n\n"
+        f"A 4-panel dashboard across all ten {cfg['title']} runs (raw reward, "
+        f"smoothed reward, the {cfg['title']} diagnostic curve, and episode "
+        f"length), followed by the hyperparameter + performance table with the "
+        f"best run highlighted. All plotting lives in "
+        f"`results/notebook_viz.py` so it stays consistent across notebooks."
+    ))
+    cells.append(nbf.v4.new_code_cell(
+        "from results.notebook_viz import training_dashboard, show_hyperparameter_table\n\n"
+        f"training_dashboard('{algo}', save_to='results/plots/{algo}_dashboard.png')\n"
+        f"table = show_hyperparameter_table('{algo}')\n"
+        "table"
+    ))
+
     # --- Cell 5: persist results ---
     cells.append(nbf.v4.new_markdown_cell(
-        "## 5. Persist results\n\n"
+        "## 6. Persist results\n\n"
         "Colab sessions are ephemeral, so models and logs must be persisted "
         "somewhere durable. Two options are provided below -- use whichever "
         "fits your workflow. **Only run one of the two cells.**"
@@ -179,7 +195,7 @@ def build_notebook(algo: str) -> nbf.NotebookNode:
 
     # --- Cell 6: quick eval ---
     cells.append(nbf.v4.new_markdown_cell(
-        "## 6. Quick evaluation\n\n"
+        "## 7. Quick evaluation\n\n"
         "Loads the best of the ten runs (by mean reward over the last 10% "
         "of episodes) and runs one evaluation episode as a fast sanity "
         "check before moving to the full analysis pipeline locally "
@@ -242,6 +258,21 @@ def build_notebook(algo: str) -> nbf.NotebookNode:
             "print('Episode stats:', info['episode_stats'])"
         )
     cells.append(nbf.v4.new_code_cell(eval_code))
+
+    # --- Cell 8: bundle all results into a downloadable zip ---
+    cells.append(nbf.v4.new_markdown_cell(
+        "## 8. Compile everything into a downloadable zip\n\n"
+        "Regenerates the full analysis (hyperparameter tables + every plot: "
+        "reward curves, DQN objective / policy-entropy curves, convergence "
+        "subplots, best-run comparison) and packages `logs/`, `models/`, and "
+        "`results/` into a single archive. In Colab this triggers a browser "
+        "download so you can drop the results straight into the local repo "
+        "(and into the report) after the session ends."
+    ))
+    cells.append(nbf.v4.new_code_cell(
+        "from results.notebook_viz import bundle_results\n\n"
+        f"bundle_results(out_path='{algo}_results_bundle.zip')"
+    ))
 
     nb["cells"] = cells
     nb["metadata"] = {
