@@ -1,0 +1,5 @@
+algorithm,run_id,train,high_contam,plastic_surge,uniform
+DQN,dqn_10,1695.25,1087.89,1928.81,1722.58
+REINFORCE,reinforce_10,1324.73,715.89,1617.63,1063.59
+A2C,a2c_08,1249.78,513.49,1700.3,1257.47
+PPO,ppo_07,1336.21,713.34,1794.65,1230.17
