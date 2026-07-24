@@ -351,6 +351,8 @@
     let binObjects = [];
     let binPositions = BIN_X.map(x => new THREE.Vector3(x, 2.0, BIN_Z));
     let excavatorGroup, excBoom, excStick, excBucket;
+    let wasteChunkGroup;
+    let supervisors = [];
     let labelMeshes = [];
     let armGroup, shoulderGroup, elbowGroup, wristGroup, clawL, clawR, heldItemMesh, armScanner;
 
@@ -494,6 +496,13 @@
       const hopFloor = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 3), hopMat); hopFloor.position.set(0, 0.1, 0); hopper.add(hopFloor);
       const hopBack = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 0.2), hopMat); hopBack.position.set(0, 1.1, -1.6); hopper.add(hopBack);
       const hopFront = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.0, 0.15), new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.4 })); hopFront.position.set(0, 0.5, 1.55); hopper.add(hopFront);
+      for (let i = 0; i < 10; i++) {
+        const piece = new THREE.Mesh(new THREE.DodecahedronGeometry(0.15 + Math.random() * 0.15, 0), new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(0.1 + Math.random() * 0.12, 0.25, 0.4 + Math.random() * 0.15), roughness: 0.9 }));
+        piece.position.set((Math.random() - 0.5) * 2.2, 0.25 + Math.random() * 0.6, (Math.random() - 0.5) * 1.8);
+        piece.scale.setScalar(0.7 + Math.random() * 0.6);
+        piece.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        hopper.add(piece);
+      }
       const hopTop = makeLabel('RECEIVING', '#aaaaaa'); hopTop.position.set(0, 3.4, 0); hopper.add(hopTop);
 
       // Slide chute
@@ -560,15 +569,17 @@
       compBars = MATERIALS.map((m, i) => { const bar = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1, 0.45), new THREE.MeshStandardMaterial({ color: COLORS[m], emissive: 0x000000, emissiveIntensity: 0 })); const angle = (i / 5) * Math.PI * 2; bar.position.set(Math.cos(angle) * 1.5, 0.55, Math.sin(angle) * 1.5); bar.scale.y = 0.001; itemGroup.add(bar); return bar; });
       itemLabel = makeLabel('INCOMING', '#ffffff'); itemLabel.position.set(0, 2.5, 0); itemGroup.add(itemLabel);
 
-      // Excavator and waste pile
+      // Excavator, waste pile, supervisors
       initWasteChunk();
       initExcavator();
-      // Robotic arm
+      // Robotic arm, supervisors, safety signs
       initArm();
+      initSupervisors();
+      initSafetySigns();
     }
 
     function initWasteChunk() {
-      const chunk = new THREE.Group(); chunk.position.set(-22.0, 0, -3); scene.add(chunk);
+      wasteChunkGroup = new THREE.Group(); const chunk = wasteChunkGroup; chunk.position.set(-22.0, 0, -3); scene.add(chunk);
       const mat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.9 });
       for (let i = 0; i < 40; i++) {
         const geo = new THREE.DodecahedronGeometry(0.35 + Math.random() * 0.35, 0);
@@ -611,6 +622,59 @@
       boomPivot.rotation.z = 2.7;
       stickPivot.rotation.z = -1.1;
       bucketPivot.rotation.z = 0.8;
+    }
+
+    function initSupervisors() {
+      const skin = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.5 });
+      const vest = new THREE.MeshStandardMaterial({ color: 0xff9800, roughness: 0.6 });
+      const pants = new THREE.MeshStandardMaterial({ color: 0x223344, roughness: 0.7 });
+      const cart = new THREE.MeshStandardMaterial({ color: 0xff7043, roughness: 0.5, metalness: 0.3 });
+      const dark = new THREE.MeshStandardMaterial({ color: 0x1c1f26, roughness: 0.8 });
+      const routes = [
+        [new THREE.Vector3(-7, 0, 5.5), new THREE.Vector3(7, 0, 5.5), new THREE.Vector3(7, 0, 3.5), new THREE.Vector3(-7, 0, 3.5)],
+        [new THREE.Vector3(7, 0, 4.5), new THREE.Vector3(-7, 0, 4.5), new THREE.Vector3(-7, 0, 6.5), new THREE.Vector3(7, 0, 6.5)]
+      ];
+      routes.forEach((route, idx) => {
+        const start = route[0];
+        const group = new THREE.Group(); group.position.copy(start); scene.add(group);
+        // cart body
+        const chassis = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 0.7), cart); chassis.position.y = 0.3; chassis.castShadow = true; group.add(chassis);
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.35, 0.4), dark); seat.position.set(0, 0.55, 0.05); group.add(seat);
+        const wheelGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.1, 14); wheelGeo.rotateX(Math.PI / 2);
+        const wheels = [];
+        [[0.45, 0.15, 0.32], [0.45, 0.15, -0.32], [-0.45, 0.15, 0.32], [-0.45, 0.15, -0.32]].forEach(([x, y, z]) => { const w = new THREE.Mesh(wheelGeo, dark); w.position.set(x, y, z); w.castShadow = true; group.add(w); wheels.push(w); });
+        // supervisor
+        const body = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.65, 12), vest); body.position.set(0, 0.95, 0); body.castShadow = true; group.add(body);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 16, 16), skin); head.position.set(0, 1.35, 0); head.castShadow = true; group.add(head);
+        const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8), skin); armR.position.set(0.18, 1.0, 0.12); armR.rotation.x = -0.6; armR.rotation.z = -0.4; group.add(armR);
+        const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.5, 8), skin); armL.position.set(-0.18, 1.0, 0.12); armL.rotation.x = -0.6; armL.rotation.z = 0.4; group.add(armL);
+        const tablet = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.02, 0.18), new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.8, roughness: 0.2 })); tablet.position.set(0, 1.05, 0.22); tablet.rotation.x = -0.4; group.add(tablet);
+        const label = makeLabel('SUPERVISOR', '#ffaa00', 3.0); label.position.set(0, 1.8, 0); group.add(label);
+        const s = { group, route, routeIndex: 1, state: 'drive', driveStart: 0, driveEnd: 0, idleEnd: 0, startPos: start.clone(), endPos: route[1].clone(), wheels, head };
+        s.group.rotation.y = Math.atan2(s.endPos.x - s.startPos.x, s.endPos.z - s.startPos.z);
+        const dist = s.startPos.distanceTo(s.endPos);
+        s.driveStart = performance.now(); s.driveEnd = s.driveStart + (dist / 2.2) * 1000;
+        supervisors.push(s);
+      });
+    }
+
+    function initSafetySigns() {
+      const signData = [
+        ['SAFETY FIRST', '#e74c3c', new THREE.Vector3(0, 7, -29.5)],
+        ['PPE REQUIRED', '#f39c12', new THREE.Vector3(-39.5, 7, -10)],
+        ['HARD HAT AREA', '#e74c3c', new THREE.Vector3(-18, 5.5, -3)],
+        ['NO SMOKING', '#c0392b', new THREE.Vector3(13, 5.5, -3)],
+        ['AUTHORIZED ONLY', '#f39c12', new THREE.Vector3(-11, 4, 2)],
+        ['WATCH FOR ROBOT', '#3498db', new THREE.Vector3(2, 6, -3)],
+        ['SLOW', '#f1c40f', new THREE.Vector3(0, 7, 5.5)]
+      ];
+      signData.forEach(([text, color, pos]) => {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 2.2, 8), new THREE.MeshStandardMaterial({ color: 0x555555, roughness: 0.7, metalness: 0.4 }));
+        pole.position.set(pos.x, 1.1, pos.z); pole.castShadow = true; scene.add(pole);
+        const board = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.6, 0.08), new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.4 }));
+        board.position.set(pos.x, 2.1, pos.z); board.castShadow = true; scene.add(board);
+        const label = makeLabel(text, color, 2.6); label.position.set(pos.x, 2.1, pos.z + 0.06); scene.add(label);
+      });
     }
 
     function initArm() {
@@ -1057,10 +1121,45 @@
       if (incLight && fireMesh) { const t = performance.now(); incLight.intensity = 0.8 + 0.25 * Math.sin(t / 80) + 0.15 * Math.sin(t / 40); fireMesh.material.opacity = 0.7 + 0.15 * Math.sin(t / 60); }
     }
 
+    function updateSupervisors(time) {
+      if (!supervisors.length) return;
+      supervisors.forEach(s => {
+        if (s.state === 'drive') {
+          const total = s.driveEnd - s.driveStart;
+          let t = total > 0 ? (time - s.driveStart) / total : 1;
+          if (t >= 1) {
+            t = 1;
+            s.group.position.copy(s.endPos); s.group.position.y = 0;
+            s.state = 'idle'; s.idleEnd = time + 1200 + Math.random() * 1500;
+            s.routeIndex = (s.routeIndex + 1) % s.route.length;
+            s.startPos.copy(s.endPos); s.endPos = s.route[s.routeIndex].clone();
+            return;
+          }
+          s.group.position.lerpVectors(s.startPos, s.endPos, t);
+          s.group.rotation.y = Math.atan2(s.endPos.x - s.startPos.x, s.endPos.z - s.startPos.z);
+          s.wheels.forEach(w => { w.rotation.x -= 0.12; });
+          // slight head turn while driving
+          if (s.head) s.head.rotation.y = 0.25 * Math.sin(time / 400);
+        } else {
+          s.group.position.y = 0;
+          // look around
+          if (time > s.idleEnd) {
+            s.state = 'drive';
+            s.driveStart = time;
+            const dist = s.startPos.distanceTo(s.endPos);
+            s.driveEnd = time + (dist / 2.2) * 1000;
+            s.group.rotation.y = Math.atan2(s.endPos.x - s.startPos.x, s.endPos.z - s.startPos.z);
+          } else {
+            if (s.head) s.head.rotation.y = Math.sin(time / 600 + s.group.position.x) * 0.5;
+          }
+        }
+      });
+    }
+
     function animate(time) {
       requestAnimationFrame(animate); controls.update(); updateStatus();
       for (let i = tweens.length - 1; i >= 0; i--) { tweens[i].update(time); if (!tweens[i].active) tweens.splice(i, 1); }
-      updateParticles(); updateArmWrist();
+      updateParticles(); updateArmWrist(); updateSupervisors(time);
       if (beltTexture) beltTexture.offset.y -= 0.0015;
       if (!animating && !isSliding && itemGroup) itemGroup.position.y = ITEM_PICK_POS.y + 0.04 * Math.sin(time / 450 + 1);
       if (currentState && currentState.bins) { currentState.bins.forEach((b, i) => { const obj = binObjects[i]; obj.jam.material.opacity = b.jammed ? 0.5 + 0.25 * Math.sin(time / 120) : 0; }); }
