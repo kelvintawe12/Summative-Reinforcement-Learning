@@ -15,143 +15,276 @@
   </script>
   <style>
     :root {
-      --bg: #14161b;
-      --panel: #1c1f26;
-      --panel2: #252930;
-      --text: #e8eaed;
-      --muted: #9aa0a6;
-      --organic: #6ea85a;
-      --plastic: #568cd2;
-      --metal: #aaaaaa;
-      --glass: #5ac8be;
-      --contaminant: #a85a5a;
-      --jam: #ff4d4d;
-      --energy: #d4b85a;
+      --bg: #0a0c0f;
+      --panel: rgba(16, 19, 24, 0.94);
+      --panel-border: rgba(55, 65, 80, 0.7);
+      --text: #e8ecf2;
+      --muted: #8e96a5;
+      --organic: #5cb85c;
+      --plastic: #5dade2;
+      --metal: #bdc3c7;
+      --glass: #1abc9c;
+      --contaminant: #c0392b;
+      --jam: #ff3b3b;
+      --energy: #f1c40f;
+      --accent: #3b82f6;
+      --danger: #e74c3c;
     }
+    * { box-sizing: border-box; }
     body { margin: 0; overflow: hidden; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
     #canvas-container { width: 100vw; height: 100vh; }
 
-    #hud {
-      position: absolute; top: 12px; left: 12px; width: 340px;
-      background: rgba(20, 22, 27, 0.96); padding: 14px; border-radius: 10px;
-      border: 1px solid #2f333b; pointer-events: none; line-height: 1.35;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    #top-bar {
+      position: absolute; top: 0; left: 0; right: 0; height: 46px;
+      background: linear-gradient(180deg, rgba(20,23,30,0.98), rgba(20,23,30,0.85));
+      border-bottom: 1px solid var(--panel-border); display: flex; align-items: center;
+      justify-content: space-between; padding: 0 18px; z-index: 20;
     }
-    #hud h1 { margin: 0 0 10px; font-size: 16px; color: #fff; }
-    .row { display: flex; justify-content: space-between; font-size: 13px; margin: 3px 0; }
+    #top-bar .brand { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; display: flex; align-items: center; gap: 10px; }
+    .status-led { width: 11px; height: 11px; border-radius: 50%; background: #444; box-shadow: 0 0 6px #444; display: inline-block; }
+    .status-led.on { background: #2ecc71; box-shadow: 0 0 8px #2ecc71; }
+    #top-bar .clock-panel { display: flex; gap: 20px; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 15px; }
+    .clock-panel .label { color: var(--muted); margin-right: 8px; font-size: 11px; text-transform: uppercase; }
+
+    #hud {
+      position: absolute; top: 46px; left: 0; right: 0;
+      display: flex; flex-direction: row; flex-wrap: nowrap; gap: 8px; justify-content: flex-start; align-items: stretch;
+      padding: 8px 12px; pointer-events: none; z-index: 15; overflow-x: auto;
+    }
+    .hud-card {
+      background: var(--panel); border: 1px solid var(--panel-border); border-radius: 8px;
+      padding: 10px 12px; pointer-events: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.45); backdrop-filter: blur(6px);
+      min-width: 200px; max-width: 280px; flex: 0 0 auto; display: flex; flex-direction: column;
+    }
+    .hud-card.bin-card { flex: 1 1 auto; max-width: none; min-width: 360px; }
+    .hud-card h2 { margin: 0 0 8px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--panel-border); padding-bottom: 3px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+    .stat { background: rgba(255,255,255,0.03); padding: 6px 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.05); }
+    .stat .label { display: block; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .stat .value { display: block; font-size: 14px; font-family: ui-monospace, monospace; margin-top: 2px; }
+    .bar-row { display: flex; align-items: center; gap: 8px; margin: 5px 0; font-size: 11px; }
+    .bar-row .label { width: 52px; color: var(--muted); }
+    .bar-track { flex: 1; height: 9px; background: rgba(255,255,255,0.06); border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.2s ease; }
+    .bar-fill.step { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+    .bar-fill.energy { background: linear-gradient(90deg, #d4ac0d, var(--energy)); }
+    .bar-fill.fill { background: linear-gradient(90deg, #4a6, #6c9); }
+    .bar-fill.contam { background: linear-gradient(90deg, #a44, #c66); }
+    .row { display: flex; justify-content: space-between; font-size: 11px; margin: 4px 0; }
     .row .label { color: var(--muted); }
-    .row .value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-    .bar-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; font-size: 12px; }
-    .bar-row .label { width: 50px; color: var(--muted); }
-    .bar-track { flex: 1; height: 10px; background: #2f333b; border-radius: 5px; overflow: hidden; }
-    .bar-fill { height: 100%; border-radius: 5px; transition: width 0.25s ease; }
-    .bar-fill.step { background: #4a6fcb; }
-    .bar-fill.energy { background: var(--energy); }
+    #bin-metrics { display: flex; flex-direction: row; flex-wrap: nowrap; gap: 8px; overflow-x: auto; }
+    .metric-row {
+      flex: 1 1 130px; min-width: 130px; max-width: 170px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); border-radius: 6px; padding: 7px 8px; pointer-events: auto; cursor: pointer; transition: background 0.15s;
+    }
+    .metric-row:hover { background: rgba(255,255,255,0.07); }
+    .metric-row.selected { background: rgba(59,130,246,0.2); border-color: rgba(59,130,246,0.6); box-shadow: 0 0 10px rgba(59,130,246,0.25); }
+    .metric-row .metric-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 5px; }
+    .metric-row .metric-name { font-weight: 600; }
+    .metric-row .metric-status { font-size: 10px; padding: 2px 6px; border-radius: 8px; background: rgba(255,255,255,0.08); }
+    .metric-row .metric-status.jam { background: rgba(231,76,60,0.25); color: #ffbfbf; }
 
-    #legend { margin-top: 10px; padding-top: 10px; border-top: 1px solid #2f333b; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; font-size: 11px; }
+    #legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 6px; font-size: 11px; margin-bottom: 8px; }
     .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
 
-    #log {
-      margin-top: 10px; max-height: 150px; overflow-y: auto; font-size: 11px;
-      background: var(--panel); border-radius: 6px; padding: 6px; pointer-events: auto;
-    }
-    .log-entry { display: grid; grid-template-columns: 28px 1fr 48px 48px; gap: 4px; padding: 2px 0; border-bottom: 1px solid #2a2d35; }
-    .log-entry:last-child { border-bottom: none; }
+    #badges { display: flex; flex-wrap: wrap; gap: 5px; min-height: 0; margin-bottom: 8px; }
+    .badge-chip { background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.5); color: #a3c5ff; font-size: 10px; padding: 3px 8px; border-radius: 10px; pointer-events: auto; animation: popIn 0.3s ease; }
+    @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    #log { max-height: 110px; overflow-y: auto; font-size: 11px; background: rgba(0,0,0,0.25); border-radius: 5px; padding: 6px; pointer-events: auto; }
+    .log-entry { display: grid; grid-template-columns: 28px 1fr 48px 48px; gap: 4px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
     .log-step { color: var(--muted); }
     .log-action { color: #fff; }
-    .log-reward { text-align: right; }
-    .log-total { text-align: right; color: var(--muted); }
+    .log-reward { text-align: right; font-family: ui-monospace, monospace; }
+    .log-total { text-align: right; color: var(--muted); font-family: ui-monospace, monospace; }
 
-    #controls {
-      position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%);
-      display: flex; flex-direction: column; gap: 8px; align-items: center;
-      background: rgba(20, 22, 27, 0.96); padding: 12px; border-radius: 10px;
-      border: 1px solid #2f333b; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    #control-panel {
+      position: absolute; bottom: 12px; left: 12px; right: 12px;
+      display: flex; flex-direction: row; flex-wrap: nowrap; gap: 10px; justify-content: center; align-items: stretch;
+      background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px;
+      padding: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); backdrop-filter: blur(6px); z-index: 25; overflow-x: auto;
     }
-    #top-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
-    #action-buttons { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .panel { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 8px 10px; min-width: auto; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .panel h3 { margin: 0; font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; text-align: center; }
+    .panel-body { display: flex; flex-direction: row; align-items: center; gap: 8px; flex-wrap: nowrap; justify-content: center; }
+    .status-row { display: flex; align-items: center; gap: 8px; font-size: 11px; margin: 0; color: #c0c7d2; }
+    .led { width: 8px; height: 8px; border-radius: 50%; background: #2a2d35; box-shadow: inset 0 0 2px #000; border: 1px solid rgba(255,255,255,0.1); }
+    .led.green.on { background: #2ecc71; box-shadow: 0 0 6px #2ecc71; border-color: #2ecc71; }
+    .led.blue.on { background: #3b82f6; box-shadow: 0 0 6px #3b82f6; border-color: #3b82f6; }
+    .led.red.on { background: #ff3b3b; box-shadow: 0 0 6px #ff3b3b; border-color: #ff3b3b; }
+
     button {
-      background: var(--panel2); color: var(--text); border: 1px solid #3c4149;
-      border-radius: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px;
-      transition: transform 0.08s, background 0.15s, box-shadow 0.15s;
-      pointer-events: auto;
+      background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px; padding: 9px 13px; cursor: pointer; font-size: 12px; font-weight: 600;
+      transition: transform 0.05s, background 0.15s; pointer-events: auto; display: inline-flex; align-items: center; gap: 6px;
     }
-    button:hover { background: #2f333b; }
-    button.primary { background: #4a6fcb; border-color: #5a7fdb; }
-    button.primary:hover { background: #5a7fdb; }
-    button.active { transform: translateY(-2px); box-shadow: 0 0 0 2px rgba(255,255,255,0.25); }
+    button:hover { background: rgba(255,255,255,0.1); }
+    button:active { transform: translateY(1px); }
+    button.primary { background: rgba(59,130,246,0.25); border-color: #3b82f6; }
+    button.primary:hover { background: rgba(59,130,246,0.4); }
+    button.danger { background: rgba(231,76,60,0.2); border-color: #e74c3c; color: #ffbfbf; }
+    button.danger:hover { background: rgba(231,76,60,0.35); }
+    button.active { box-shadow: 0 0 0 2px rgba(255,255,255,0.25); transform: translateY(-1px); }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    button.sort-organic { border-color: var(--organic); }
-    button.sort-plastic { border-color: var(--plastic); }
-    button.sort-metal { border-color: var(--metal); }
-    button.sort-glass { border-color: var(--glass); }
-    button.reject { border-color: #888; }
-    button.hold { border-color: #d4b85a; }
-    button.scan { border-color: #7e7ee0; }
+    .action { padding: 8px 11px; border-width: 1px; }
+    .action .led { width: 8px; height: 8px; border-radius: 50%; background: #333; }
+    .action.active .led { box-shadow: 0 0 6px currentColor; }
+    .sort-organic { border-color: var(--organic); color: #d4f5d4; }
+    .sort-organic .led { background: var(--organic); }
+    .sort-plastic { border-color: var(--plastic); color: #d4eafd; }
+    .sort-plastic .led { background: var(--plastic); }
+    .sort-metal { border-color: var(--metal); color: #eeeeee; }
+    .sort-metal .led { background: var(--metal); }
+    .sort-glass { border-color: var(--glass); color: #d4f7f2; }
+    .sort-glass .led { background: var(--glass); }
+    .reject { border-color: #888; color: #ddd; }
+    .reject .led { background: #888; }
+    .hold { border-color: var(--energy); color: #fff6d0; }
+    .hold .led { background: var(--energy); }
+    .scan { border-color: #9b59b6; color: #f0e6ff; }
+    .scan .led { background: #9b59b6; }
 
-    #speed-wrap { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
-    #speed { width: 90px; }
+    .slider-wrap { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); margin: 0; }
+    .slider-wrap input { width: 90px; }
+
+    #badge-toast {
+      position: absolute; top: 140px; right: 14px;
+      background: linear-gradient(135deg, rgba(30,45,80,0.95), rgba(15,25,45,0.95));
+      border: 1px solid rgba(59,130,246,0.6); border-radius: 8px; padding: 12px 16px;
+      display: none; align-items: center; gap: 10px; pointer-events: none; z-index: 30;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5); animation: slideIn 0.35s ease;
+    }
+    @keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    #badge-toast .star { font-size: 24px; color: #ffd700; }
+    #badge-toast .title { font-weight: 700; font-size: 14px; color: #fff; }
+    #badge-toast .desc { font-size: 11px; color: var(--muted); }
 
     #action-toast {
-      position: absolute; top: 14px; left: 50%; transform: translateX(-50%);
-      background: rgba(20, 22, 27, 0.95); border: 1px solid #3c4149; border-radius: 8px;
-      padding: 8px 16px; font-size: 14px; display: none; pointer-events: none; z-index: 20;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      background: rgba(10,12,16,0.92); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px;
+      padding: 10px 18px; font-size: 15px; display: none; pointer-events: none; z-index: 20;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.5); text-align: center;
     }
-    #action-toast .action-name { font-weight: 600; }
-    #action-toast .reward { color: #7ee07e; margin-left: 8px; font-family: ui-monospace, monospace; }
+    #action-toast .action-name { font-weight: 700; color: #fff; }
+    #action-toast .reward { display: block; font-family: ui-monospace, monospace; margin-top: 4px; font-size: 14px; }
 
     #loading {
       position: absolute; inset: 0; background: var(--bg); display: flex; flex-direction: column;
       align-items: center; justify-content: center; color: var(--muted); z-index: 50;
     }
     #loading.hidden { display: none; }
-    .spinner { width: 36px; height: 36px; border: 3px solid #2f333b; border-top-color: #4a6fcb; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 12px; }
+    .spinner { width: 40px; height: 40px; border: 3px solid #20242c; border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div id="loading"><div class="spinner"></div>Starting environment…</div>
+  <div id="loading"><div class="spinner"></div>Initializing facility systems…</div>
   <div id="canvas-container"></div>
 
-  <div id="hud">
-    <h1>Waste Segregation Facility</h1>
-    <div class="row"><span class="label">Step</span><span class="value" id="step">-</span></div>
-    <div class="row"><span class="label">Total reward</span><span class="value" id="reward">-</span></div>
-    <div class="row"><span class="label">Last action</span><span class="value" id="last-action">-</span></div>
-    <div class="bar-row"><span class="label">Episode</span><div class="bar-track"><div class="bar-fill step" id="step-bar"></div></div></div>
-    <div class="bar-row"><span class="label">Energy</span><div class="bar-track"><div class="bar-fill energy" id="energy-bar"></div></div></div>
-    <div class="row"><span class="label">Consecutive holds</span><span class="value" id="holds">-</span></div>
-    <div class="row"><span class="label">Episode stats</span><span class="value" id="stats">-</span></div>
-    <div id="legend">
-      <div><span class="legend-dot" style="background:var(--organic)"></span>organic</div>
-      <div><span class="legend-dot" style="background:var(--plastic)"></span>plastic</div>
-      <div><span class="legend-dot" style="background:var(--metal)"></span>metal</div>
-      <div><span class="legend-dot" style="background:var(--glass)"></span>glass</div>
-      <div><span class="legend-dot" style="background:var(--contaminant)"></span>contaminant</div>
-      <div><span class="legend-dot" style="background:var(--jam)"></span>jammed</div>
+  <header id="top-bar">
+    <div class="brand"><span class="status-led" id="run-led"></span> WASTE SEGREGATION FACILITY</div>
+    <div class="clock-panel">
+      <div><span class="label">Wall</span><span id="clock-wall">--:--:--</span></div>
+      <div><span class="label">Sim</span><span id="clock-sim">00:00</span></div>
     </div>
-    <div id="log"></div>
+  </header>
+
+  <aside id="hud">
+    <div class="hud-card">
+      <h2>Production</h2>
+      <div class="stats-grid">
+        <div class="stat"><span class="label">Step</span><span class="value" id="step">-</span></div>
+        <div class="stat"><span class="label">Reward</span><span class="value" id="reward">-</span></div>
+        <div class="stat"><span class="label">Action</span><span class="value" id="last-action">-</span></div>
+      </div>
+      <div class="bar-row"><span class="label">Episode</span><div class="bar-track"><div class="bar-fill step" id="step-bar"></div></div></div>
+      <div class="bar-row"><span class="label">Energy</span><div class="bar-track"><div class="bar-fill energy" id="energy-bar"></div></div></div>
+      <div class="row"><span class="label">Holds</span><span class="value" id="holds">-</span></div>
+      <div class="row"><span class="label">Stats</span><span class="value" id="stats">-</span></div>
+    </div>
+
+    <div class="hud-card">
+      <h2>Materials</h2>
+      <div id="legend">
+        <div><span class="legend-dot" style="background:var(--organic)"></span>organic</div>
+        <div><span class="legend-dot" style="background:var(--plastic)"></span>plastic</div>
+        <div><span class="legend-dot" style="background:var(--metal)"></span>metal</div>
+        <div><span class="legend-dot" style="background:var(--glass)"></span>glass</div>
+        <div><span class="legend-dot" style="background:var(--contaminant)"></span>contaminant</div>
+        <div><span class="legend-dot" style="background:var(--jam)"></span>jammed</div>
+      </div>
+    </div>
+
+    <div class="hud-card badges-card">
+      <h2>Badges</h2>
+      <div id="badges"></div>
+    </div>
+
+    <div class="hud-card log-card">
+      <h2>System Log</h2>
+      <div id="log"></div>
+    </div>
+
+    <div class="hud-card bin-card">
+      <h2>Bin Metrics (click to focus)</h2>
+      <div id="bin-metrics"></div>
+    </div>
+  </aside>
+
+  <div id="control-panel">
+    <div class="panel">
+      <h3>System Status</h3>
+      <div class="panel-body">
+        <div class="status-row"><span class="led green" id="led-run"></span> RUN</div>
+        <div class="status-row"><span class="led blue" id="led-auto"></span> AUTO</div>
+        <div class="status-row"><span class="led red" id="led-jam"></span> JAM</div>
+        <div class="status-row"><span class="led red" id="led-alarm"></span> ALARM</div>
+      </div>
+    </div>
+    <div class="panel">
+      <h3>Agent Controls</h3>
+      <div class="panel-body">
+        <button id="btn-reset">RESET</button>
+        <button id="btn-predict" class="primary">PREDICT</button>
+        <button id="btn-auto">AUTO RUN</button>
+        <button id="btn-stop" class="danger">E-STOP</button>
+        <div class="slider-wrap"><label>DELAY</label><input id="speed" type="range" min="200" max="1200" value="600"><span id="speed-val">600ms</span></div>
+      </div>
+    </div>
+    <div class="panel actions-panel">
+      <h3>Manual Sort</h3>
+      <div class="panel-body">
+        <button class="action sort-organic" data-action="0"><span class="led"></span>Organic</button>
+        <button class="action sort-plastic" data-action="1"><span class="led"></span>Plastic</button>
+        <button class="action sort-metal" data-action="2"><span class="led"></span>Metal</button>
+        <button class="action sort-glass" data-action="3"><span class="led"></span>Glass</button>
+        <button class="action reject" data-action="4"><span class="led"></span>Reject</button>
+        <button class="action hold" data-action="5"><span class="led"></span>Hold</button>
+        <button class="action scan" data-action="6"><span class="led"></span>Scan</button>
+      </div>
+    </div>
+    <div class="panel cam-panel">
+      <h3>Camera / View</h3>
+      <div class="panel-body">
+        <button class="cam" data-cam="overview">Overview</button>
+        <button class="cam" data-cam="line">Line</button>
+        <button class="cam" data-cam="top">Top</button>
+        <button class="cam" data-cam="hopper">Hopper</button>
+        <button class="cam" data-cam="truck">Truck</button>
+        <button class="cam" data-cam="bins">Bins</button>
+        <button id="btn-zoom-out">-</button>
+        <button id="btn-zoom-in">+</button>
+        <button id="btn-orbit">Orbit</button>
+        <button id="btn-labels">Labels: ON</button>
+      </div>
+    </div>
   </div>
 
-  <div id="controls">
-    <div id="top-controls">
-      <button id="btn-reset">Reset</button>
-      <button id="btn-predict" class="primary">Predict (best agent)</button>
-      <button id="btn-auto">Auto run</button>
-      <div id="speed-wrap"><span>Speed</span><input id="speed" type="range" min="150" max="1200" value="450"><span id="speed-val">450ms</span></div>
-    </div>
-    <div id="action-buttons">
-      <button class="action sort-organic" data-action="0">Organic</button>
-      <button class="action sort-plastic" data-action="1">Plastic</button>
-      <button class="action sort-metal" data-action="2">Metal</button>
-      <button class="action sort-glass" data-action="3">Glass</button>
-      <button class="action reject" data-action="4">Reject</button>
-      <button class="action hold" data-action="5">Hold</button>
-      <button class="action scan" data-action="6">Scan</button>
-    </div>
+  <div id="badge-toast">
+    <span class="star">★</span>
+    <div><div class="title" id="badge-title">Badge</div><div class="desc">Milestone reached</div></div>
   </div>
 
   <div id="action-toast"><span class="action-name">-</span><span class="reward">+0.00</span></div>
@@ -163,505 +296,862 @@
     const BIN_NAMES = ['organic', 'plastic', 'metal', 'glass'];
     const MATERIALS = ['organic', 'plastic', 'metal', 'glass', 'contaminant'];
     const ACTION_NAMES = ['sort_organic','sort_plastic','sort_metal','sort_glass','reject','hold','scan_closely'];
-    const ACTION_LABELS = ['Sort Organic','Sort Plastic','Sort Metal','Sort Glass','Reject','Hold','Scan'];
+    const ACTION_LABELS = ['Sort Organic','Sort Plastic','Sort Metal','Sort Glass','Reject (Incinerate)','Hold','Scan Closely'];
     const COLORS = {
-      organic: 0x6ea85a, plastic: 0x568cd2, metal: 0xaaaaaa, glass: 0x5ac8be,
-      contaminant: 0xa85a5a, conveyor: 0x2c3038, floor: 0x14161b, jam: 0xff4d4d,
-      landfill: 0x4a3f3f, scan: 0xffcc00
+      organic: 0x5cb85c, plastic: 0x5dade2, metal: 0xbdc3c7, glass: 0x1abc9c,
+      contaminant: 0xc0392b, conveyor: 0x2c3038, floor: 0x0a0c0f, jam: 0xff3b3b,
+      incinerator: 0x4a3b32, fire: 0xff6600, scan: 0xffcc00, arm: 0x34495e, armJoint: 0x95a5a6
     };
+
+    const BADGE_DEFS = [
+      { id: 'first_shipout', title: 'First Ship-out', desc: 'Bins shipped out for the first time' },
+      { id: 'reward_500', title: 'Hot Streak', desc: 'Total reward passed 500' },
+      { id: 'reward_1000', title: 'Centurion', desc: 'Total reward passed 1000' },
+      { id: 'reward_1500', title: 'Master Sorter', desc: 'Total reward passed 1500' },
+      { id: 'jam_free', title: 'Jam-free Zone', desc: '50 steps without a jam' },
+      { id: 'spot_on', title: 'Spot On', desc: '25 correct sorts' },
+      { id: 'full_house', title: 'Full House', desc: 'All bins have material' },
+      { id: 'conservationist', title: 'Conservationist', desc: 'More correct than incorrect after 100 steps' }
+    ];
+
+    // Facility layout
+    const ITEM_PICK_POS = new THREE.Vector3(1.5, 1.1, 2.0);
+    const ITEM_SPAWN_POS = new THREE.Vector3(-8.0, 2.0, 2.0);
+    const BIN_X = [-6.5, -2.2, 2.2, 6.5];
+    const BIN_Z = -3.0;
+    const INCINERATOR_POS = new THREE.Vector3(13.0, 0, -3.0);
+    const TRUCK_PARK_POS = new THREE.Vector3(-22, 0, 2.0);
+    const TRUCK_DUMP_POS = new THREE.Vector3(-12, 0, 2.0);
+    const ARM_BASE_POS = new THREE.Vector3(9.5, 0.5, -1.0);
+    const ARM_L1 = 8.5, ARM_L2 = 8.5, SHOULDER_H = 1.0;
 
     let sessionId = null;
     let currentState = null;
     let animating = false;
     let autoRunning = false;
     let autoTimeout = null;
-    let activeTween = null;
-    let autoInterval = 450;
+    let autoInterval = 600;
+    let earnedBadges = new Set();
+    let tweens = [];
+    let burstParticles = [];
+    let fallingItems = [];
+    let smokeParticles = [];
+    let beltTexture = null;
+    let truckRunning = false;
+    let truckTimer = null;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let labelsVisible = true;
+    let isSliding = false;
+    let incLight = null;
+    let fireMesh = null;
+    let incineratorActive = false;
 
-    // Scene setup
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(COLORS.floor);
-    scene.fog = new THREE.Fog(COLORS.floor, 25, 70);
+    // Scene globals
+    let scene, camera, renderer, controls;
+    let itemGroup, itemMesh, compBars = [], itemLabel;
+    let binObjects = [];
+    let binPositions = BIN_X.map(x => new THREE.Vector3(x, 2.0, BIN_Z));
+    let truckGroup, trailerPivot, trailerMesh;
+    let excavatorGroup, excBoom, excStick, excBucket;
+    let labelMeshes = [];
+    let armGroup, shoulderGroup, elbowGroup, wristGroup, clawL, clawR, heldItemMesh, armScanner;
 
-    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
-    camera.position.set(0, 13, 24);
-
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.getElementById('canvas-container').appendChild(renderer.domElement);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.target.set(0, 1.5, -2);
-    controls.enableDamping = true;
-    controls.update();
-
-    const ambient = new THREE.AmbientLight(0xffffff, 0.55);
-    scene.add(ambient);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
-    dir.position.set(10, 20, 12);
-    dir.castShadow = true;
-    dir.shadow.mapSize.width = 2048;
-    dir.shadow.mapSize.height = 2048;
-    dir.shadow.camera.left = -18; dir.shadow.camera.right = 18;
-    dir.shadow.camera.top = 18; dir.shadow.camera.bottom = -18;
-    scene.add(dir);
-    const fillLight = new THREE.DirectionalLight(0x8899aa, 0.3);
-    fillLight.position.set(-10, 8, -10);
-    scene.add(fillLight);
-
-    // Floor with subtle grid
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(60, 60),
-      new THREE.MeshStandardMaterial({ color: 0x111317, roughness: 0.95, metalness: 0.05 })
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.receiveShadow = true;
-    scene.add(floor);
-    const grid = new THREE.GridHelper(60, 60, 0x252930, 0x1a1c21);
-    grid.position.y = 0.01;
-    scene.add(grid);
-
-    // Conveyor belt
-    const belt = new THREE.Mesh(
-      new THREE.BoxGeometry(24, 0.35, 4.2),
-      new THREE.MeshStandardMaterial({ color: COLORS.conveyor, roughness: 0.7 })
-    );
-    belt.position.set(0, 0.175, -5);
-    belt.receiveShadow = true;
-    scene.add(belt);
-    // rollers
-    for (let i = -10; i <= 10; i += 2.5) {
-      const roller = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.18, 0.18, 4.0, 12),
-        new THREE.MeshStandardMaterial({ color: 0x3c4149 })
-      );
-      roller.rotation.z = Math.PI / 2;
-      roller.position.set(i, 0.35, -5);
-      scene.add(roller);
-    }
-
-    // Bins
-    const binGroup = new THREE.Group();
-    scene.add(binGroup);
-    const binX = [-6.5, -2.2, 2.2, 6.5];
-    const binPositions = binX.map(x => new THREE.Vector3(x, 1.8, 0));
-    const binObjects = [];
-    BIN_NAMES.forEach((name, i) => {
-      const x = binX[i];
-      const color = COLORS[name];
-      // housing
-      const houseMat = new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.4 });
-      const house = new THREE.Mesh(new THREE.BoxGeometry(3.2, 3.8, 3.2), houseMat);
-      house.position.set(x, 2.05, 0);
-      // back wall
-      const wall = new THREE.Mesh(
-        new THREE.BoxGeometry(3.2, 3.8, 0.2),
-        new THREE.MeshStandardMaterial({ color: 0x2c3038 })
-      );
-      wall.position.set(x, 2.05, 1.6);
-      // fill
-      const fillMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.25 });
-      const fill = new THREE.Mesh(new THREE.BoxGeometry(2.9, 1, 2.9), fillMat);
-      fill.position.set(x, 0.55, 0);
-      fill.scale.y = 0.001;
-      fill.castShadow = true;
-      // contamination marker
-      const contamBar = new THREE.Mesh(
-        new THREE.BoxGeometry(0.45, 1, 0.45),
-        new THREE.MeshStandardMaterial({ color: COLORS.contaminant, transparent: true, opacity: 0.9 })
-      );
-      contamBar.position.set(x + 1.9, 0.2, 0);
-      contamBar.scale.y = 0.001;
-      // jam flash
-      const jam = new THREE.Mesh(
-        new THREE.BoxGeometry(3.4, 4.0, 0.25),
-        new THREE.MeshBasicMaterial({ color: COLORS.jam, transparent: true, opacity: 0 })
-      );
-      jam.position.set(x, 2.05, -1.7);
-      binGroup.add(house, wall, fill, contamBar, jam);
-      binObjects.push({ name, house, fill, contamBar, jam, color });
-
-      // label
-      const sprite = makeLabel(name.toUpperCase(), colorToCss(color));
-      sprite.position.set(x, 4.3, 0);
-      binGroup.add(sprite);
-    });
-
-    // Landfill / reject chute
-    const landfill = new THREE.Mesh(
-      new THREE.BoxGeometry(2.8, 1.6, 2.8),
-      new THREE.MeshStandardMaterial({ color: COLORS.landfill, roughness: 0.8 })
-    );
-    landfill.position.set(10.8, 0.8, -5);
-    landfill.castShadow = true;
-    scene.add(landfill);
-    const landfillLabel = makeLabel('LANDFILL', '#b8a0a0');
-    landfillLabel.position.set(10.8, 2.3, -5);
-    scene.add(landfillLabel);
-    const landfillPos = new THREE.Vector3(10.8, 1.4, -5);
-
-    // Incoming item
-    const itemGroup = new THREE.Group();
-    scene.add(itemGroup);
-    const itemBaseY = 1.3;
-    const itemMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.75, 32, 32),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35, metalness: 0.1 })
-    );
-    itemMesh.position.set(1.5, itemBaseY, -5);
-    itemMesh.castShadow = true;
-    itemGroup.add(itemMesh);
-
-    const compColors = [COLORS.organic, COLORS.plastic, COLORS.metal, COLORS.glass, COLORS.contaminant];
-    const compBars = [];
-    MATERIALS.forEach((m, i) => {
-      const bar = new THREE.Mesh(
-        new THREE.BoxGeometry(0.55, 1, 0.55),
-        new THREE.MeshStandardMaterial({ color: compColors[i] })
-      );
-      const angle = (i / 5) * Math.PI * 2;
-      bar.position.set(Math.cos(angle) * 1.7, 0.55, Math.sin(angle) * 1.7 - 5);
-      bar.scale.y = 0.001;
-      itemGroup.add(bar);
-      compBars.push(bar);
-    });
-    const itemLabel = makeLabel('INCOMING', '#ffffff');
-    itemLabel.position.set(1.5, 2.6, -5);
-    itemGroup.add(itemLabel);
-
-    // Scanner beam (hidden by default)
-    const scannerBeam = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.6, 0.6, 5, 16, 1, true),
-      new THREE.MeshBasicMaterial({ color: COLORS.scan, transparent: true, opacity: 0.55, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })
-    );
-    scannerBeam.position.set(1.5, 3.8, -5);
-    scannerBeam.visible = false;
-    scene.add(scannerBeam);
-
-    // Helpers
     function fmt(n) { return Number(n).toFixed(2); }
     function setText(id, text) { document.getElementById(id).textContent = text; }
-    function colorToCss(hex) { return '#' + new THREE.Color(hex).getHexString(); }
-    function makeLabel(text, color) {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      ctx.font = 'bold 24px system-ui, sans-serif';
-      const w = ctx.measureText(text).width + 24;
-      canvas.width = w; canvas.height = 34;
-      ctx.fillStyle = 'rgba(0,0,0,0.55)';
-      ctx.beginPath(); ctx.roundRect(0, 0, w, 34, 8); ctx.fill();
-      ctx.fillStyle = color;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(text, w / 2, 17);
-      const tex = new THREE.CanvasTexture(canvas);
+    function pct(n) { return Math.round((n || 0) * 100) + '%'; }
+    function cssColor(hex) { return '#' + new THREE.Color(hex).getHexString(); }
+
+    function makeTexture(width, height, drawFn) {
+      const c = document.createElement('canvas'); c.width = width; c.height = height;
+      const ctx = c.getContext('2d'); drawFn(ctx, width, height);
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; return tex;
+    }
+
+    function makeLabel(text, color, size = 3.6) {
+      const tex = makeTexture(512, 128, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.beginPath(); ctx.roundRect(0, 0, w, h, 24); ctx.fill();
+        ctx.fillStyle = color;
+        ctx.font = 'bold 56px system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(text.toUpperCase(), w / 2, h / 2);
+      });
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-      sprite.scale.set((w / 34) * 0.9, 0.9, 1);
-      return sprite;
+      sprite.scale.set(size, size * 0.25, 1); labelMeshes.push(sprite); return sprite;
+    }
+    function updateLabel(sprite, text, color) {
+      sprite.material.map = makeTexture(512, 128, (ctx, w, h) => {
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.beginPath(); ctx.roundRect(0, 0, w, h, 24); ctx.fill();
+        ctx.fillStyle = color;
+        ctx.font = 'bold 56px system-ui, sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(String(text).toUpperCase(), w / 2, h / 2);
+      });
+      sprite.material.needsUpdate = true;
+    }
+
+    function createWasteItem() {
+      const group = new THREE.Group();
+      const shapes = [
+        () => new THREE.BoxGeometry(0.35, 0.18, 0.25),
+        () => new THREE.CylinderGeometry(0.12, 0.12, 0.45, 10),
+        () => new THREE.ConeGeometry(0.13, 0.35, 10),
+        () => new THREE.TetrahedronGeometry(0.2),
+        () => new THREE.SphereGeometry(0.16, 10, 10),
+        () => new THREE.BoxGeometry(0.22, 0.3, 0.22)
+      ];
+      for (let i = 0; i < 12; i++) {
+        const geo = shapes[i % shapes.length]();
+        const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.55, metalness: 0.15 }));
+        m.position.set((Math.random() - 0.5) * 0.9, 0.2 + Math.random() * 0.5, (Math.random() - 0.5) * 0.9);
+        m.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
+        m.castShadow = true; m.receiveShadow = true;
+        m.userData.isWaste = true;
+        group.add(m);
+      }
+      const base = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.12, 0.9), new THREE.MeshStandardMaterial({ color: 0x2a2d35, roughness: 0.85 }));
+      base.position.y = 0.06; base.castShadow = true; base.receiveShadow = true; group.add(base);
+      return group;
+    }
+    function colorWasteGroup(group, comp, domIdx) {
+      const pieces = group.children.filter(c => c.userData.isWaste);
+      const total = Math.max(MATERIALS.reduce((s, m) => s + (comp[m] || 0), 0), 1e-9);
+      const counts = MATERIALS.map(m => Math.max(0, comp[m] || 0));
+      let assigned = [];
+      MATERIALS.forEach((m, i) => {
+        const n = Math.min(pieces.length, Math.round((counts[i] / total) * pieces.length));
+        for (let k = 0; k < n; k++) assigned.push(i);
+      });
+      while (assigned.length < pieces.length) assigned.push(domIdx);
+      while (assigned.length > pieces.length) assigned.pop();
+      pieces.forEach((piece, idx) => { piece.material.color.setHex(COLORS[MATERIALS[assigned[idx]]]); piece.material.emissive.setHex(0x000000); });
+    }
+
+    class Tween {
+      constructor(target, to, duration, opts = {}) {
+        this.target = target; this.to = to; this.duration = duration; this.from = {};
+        for (const k in to) this.from[k] = target[k];
+        this.start = performance.now(); this.easing = opts.easing || easeOutQuad;
+        this.onUpdate = opts.onUpdate || null; this.onComplete = opts.onComplete || null; this.active = true;
+      }
+      update(time) {
+        const t = Math.min((time - this.start) / this.duration, 1);
+        const e = this.easing(t);
+        for (const k in this.to) { if (typeof this.from[k] === 'number') this.target[k] = this.from[k] + (this.to[k] - this.from[k]) * e; }
+        if (this.onUpdate) this.onUpdate(this.target, t, e);
+        if (t >= 1) { this.active = false; if (this.onComplete) this.onComplete(); }
+      }
+    }
+    function tweenPromise(target, to, duration, opts = {}) {
+      return new Promise(resolve => { tweens.push(new Tween(target, to, duration, { ...opts, onComplete: resolve })); });
+    }
+    function easeOutQuad(t) { return 1 - (1 - t) * (1 - t); }
+    function easeInOutQuad(t) { return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; }
+    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+    function shortestAngle(current, target) { let d = target - current; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return current + d; }
+
+    function initScene() {
+      scene = new THREE.Scene(); scene.background = new THREE.Color(COLORS.floor); scene.fog = new THREE.Fog(COLORS.floor, 45, 120);
+      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 150);
+      camera.position.set(2, 16, 28);
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      document.getElementById('canvas-container').appendChild(renderer.domElement);
+      controls = new OrbitControls(camera, renderer.domElement); controls.target.set(2, 2, 1); controls.enableDamping = true; controls.maxPolarAngle = Math.PI / 2 - 0.02;
+
+      const ambient = new THREE.AmbientLight(0xffffff, 0.42); scene.add(ambient);
+      const sun = new THREE.DirectionalLight(0xffffff, 0.85); sun.position.set(16, 34, 18); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40; scene.add(sun);
+      const fill = new THREE.DirectionalLight(0x8a9bb0, 0.35); fill.position.set(-12, 14, -12); scene.add(fill);
+
+      // Floor
+      const floorTex = makeTexture(512, 512, (ctx, w, h) => {
+        ctx.fillStyle = '#11141a'; ctx.fillRect(0,0,w,h);
+        ctx.strokeStyle = 'rgba(255,255,255,0.035)'; ctx.lineWidth = 1;
+        for (let i=0;i<=w;i+=64){ ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,h); ctx.stroke(); }
+        for (let i=0;i<=h;i+=64){ ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(w,i); ctx.stroke(); }
+        for (let i=0;i<1200;i++){ ctx.fillStyle = `rgba(255,255,255,${Math.random()*0.025})`; ctx.fillRect(Math.random()*w, Math.random()*h, 2, 2); }
+      });
+      floorTex.wrapS = THREE.RepeatWrapping; floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(10, 10);
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.92, metalness: 0.05 }));
+      floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+
+      // Warehouse shell
+      const wallMat = new THREE.MeshStandardMaterial({ color: 0x181b22, roughness: 0.85 });
+      const back = new THREE.Mesh(new THREE.BoxGeometry(95, 22, 1), wallMat); back.position.set(0, 11, -30); back.receiveShadow = true; scene.add(back);
+      // Left wall with truck bay opening
+      const leftTop = new THREE.Mesh(new THREE.BoxGeometry(1, 14, 70), wallMat); leftTop.position.set(-40, 15, -2); scene.add(leftTop);
+      const leftBottom = new THREE.Mesh(new THREE.BoxGeometry(1, 3, 70), wallMat); leftBottom.position.set(-40, 1.5, -2); scene.add(leftBottom);
+      const leftRearPillar = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 22), wallMat); leftRearPillar.position.set(-40, 4, -24); scene.add(leftRearPillar);
+      const leftFrontPillar = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 26), wallMat); leftFrontPillar.position.set(-40, 4, 16); scene.add(leftFrontPillar);
+      const right = new THREE.Mesh(new THREE.BoxGeometry(1, 22, 70), wallMat); right.position.set(40, 11, -2); right.receiveShadow = true; scene.add(right);
+      const dockLabel = makeLabel('TRUCK DOCK', '#bbbbbb', 5.0); dockLabel.position.set(-20, 6, 2); scene.add(dockLabel);
+      for (let x = -35; x <= 35; x += 12) { const truss = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 62), new THREE.MeshStandardMaterial({ color: 0x252a33 })); truss.position.set(x, 20.5, -2); scene.add(truss); }
+
+      // Receiving hopper
+      const hopper = new THREE.Group(); hopper.position.set(-8.0, 0, 2); scene.add(hopper);
+      const hopMat = new THREE.MeshStandardMaterial({ color: 0x2c3038, metalness: 0.35, roughness: 0.5 });
+      [[0,1.1,1.4], [0,1.1,-1.4]].forEach(([x,y,z]) => { const w = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 0.2), hopMat); w.position.set(x,y,z); hopper.add(w); });
+      [[-1.6,1.1,0], [1.6,1.1,0]].forEach(([x,y,z]) => { const w = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.2, 3), hopMat); w.position.set(x,y,z); hopper.add(w); });
+      const hopFloor = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 3), hopMat); hopFloor.position.set(0, 0.1, 0); hopper.add(hopFloor);
+      const hopBack = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 0.2), hopMat); hopBack.position.set(0, 1.1, -1.6); hopper.add(hopBack);
+      const hopFront = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.0, 0.15), new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.4 })); hopFront.position.set(0, 0.5, 1.55); hopper.add(hopFront);
+      const hopTop = makeLabel('RECEIVING', '#aaaaaa'); hopTop.position.set(0, 3.4, 0); hopper.add(hopTop);
+
+      // Slide chute
+      const slideStart = new THREE.Vector3(-7.0, 1.6, 2);
+      const slideEnd = new THREE.Vector3(1.5, 0.5, 2);
+      const slideLen = slideStart.distanceTo(slideEnd);
+      const slide = new THREE.Mesh(new THREE.BoxGeometry(slideLen, 0.15, 1.6), new THREE.MeshStandardMaterial({ color: 0x3a3f48, metalness: 0.4, roughness: 0.5 }));
+      slide.position.copy(new THREE.Vector3().addVectors(slideStart, slideEnd).multiplyScalar(0.5));
+      slide.rotation.z = Math.atan2(slideEnd.y - slideStart.y, slideEnd.x - slideStart.x);
+      scene.add(slide);
+      const slideSideL = new THREE.Mesh(new THREE.BoxGeometry(slideLen, 0.35, 0.08), new THREE.MeshStandardMaterial({ color: 0x2c3038 })); slideSideL.position.copy(slide.position); slideSideL.position.y += 0.25; slideSideL.position.z -= 0.82; slideSideL.rotation.z = slide.rotation.z; scene.add(slideSideL);
+      const slideSideR = slideSideL.clone(); slideSideR.position.z += 1.64; scene.add(slideSideR);
+
+      // Main conveyor belt
+      beltTexture = makeTexture(256, 64, (ctx, w, h) => { ctx.fillStyle = '#2c3038'; ctx.fillRect(0,0,w,h); ctx.fillStyle = '#3c4149'; for (let y=0;y<h;y+=16) ctx.fillRect(0, y, w, 7); ctx.strokeStyle = '#252930'; ctx.lineWidth = 2; ctx.strokeRect(0,0,w,h); });
+      beltTexture.wrapS = THREE.RepeatWrapping; beltTexture.wrapT = THREE.RepeatWrapping; beltTexture.repeat.set(1, 10);
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(18, 0.35, 4.6), new THREE.MeshStandardMaterial({ map: beltTexture, roughness: 0.7, metalness: 0.2 }));
+      belt.position.set(-3, 0.175, 2); belt.receiveShadow = true; scene.add(belt);
+      const railMat = new THREE.MeshStandardMaterial({ color: 0x4a4f58, metalness: 0.55, roughness: 0.4 });
+      for (const z of [-0.4, 4.4]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(18, 0.6, 0.25), railMat); rail.position.set(-3, 0.55, z); rail.castShadow = true; scene.add(rail); }
+      for (let x = -12; x <= 6; x += 2) { const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 4.2, 14), new THREE.MeshStandardMaterial({ color: 0x353a43, metalness: 0.45 })); roller.rotation.z = Math.PI / 2; roller.position.set(x, 0.4, 2); scene.add(roller); }
+
+      // Sorting bins with lids
+      const binGroup = new THREE.Group(); scene.add(binGroup);
+      BIN_NAMES.forEach((name, i) => {
+        const x = BIN_X[i]; const color = COLORS[name];
+        const group = new THREE.Group(); group.position.set(x, 0, BIN_Z); binGroup.add(group);
+        const shellMat = new THREE.MeshStandardMaterial({ color: 0x2a2d35, metalness: 0.3, roughness: 0.5 });
+        const floor = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 3.2), shellMat); floor.position.y = 0.1; floor.castShadow = true; group.add(floor);
+        const back = new THREE.Mesh(new THREE.BoxGeometry(3.2, 3.8, 0.2), shellMat); back.position.set(0, 2, -1.5); back.castShadow = true; group.add(back);
+        const left = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.8, 3.2), shellMat); left.position.set(-1.5, 2, 0); left.castShadow = true; group.add(left);
+        const right = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.8, 3.2), shellMat); right.position.set(1.5, 2, 0); right.castShadow = true; group.add(right);
+        const front = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.0, 0.15), new THREE.MeshStandardMaterial({ color, metalness: 0.25, roughness: 0.5 })); front.position.set(0, 0.5, 1.55); group.add(front);
+        const fill = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1, 2.8), new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.15 })); fill.position.set(0, 0.6, 0); fill.scale.y = 0.001; fill.castShadow = true; group.add(fill);
+        const contam = new THREE.Mesh(new THREE.BoxGeometry(0.4, 1, 0.4), new THREE.MeshStandardMaterial({ color: COLORS.contaminant, transparent: true, opacity: 0.9 })); contam.position.set(2.0, 0.4, 0); contam.scale.y = 0.001; group.add(contam);
+        const jam = new THREE.Mesh(new THREE.BoxGeometry(3.4, 4.0, 0.25), new THREE.MeshBasicMaterial({ color: COLORS.jam, transparent: true, opacity: 0 })); jam.position.set(0, 2, -1.7); group.add(jam);
+        // lid pivot at back top
+        const lidPivot = new THREE.Group(); lidPivot.position.set(0, 3.9, -1.5); group.add(lidPivot);
+        const lid = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.12, 3.2), new THREE.MeshStandardMaterial({ color: 0x3a3f48, metalness: 0.35, roughness: 0.5 })); lid.position.set(0, 0, 1.6); lid.castShadow = true; lidPivot.add(lid);
+        const label = makeLabel(name, cssColor(color), 4.2); label.position.set(0, 4.6, 1.8); group.add(label);
+        // front fill meter
+        const meterFrame = new THREE.Mesh(new THREE.BoxGeometry(0.5, 2.6, 0.08), new THREE.MeshStandardMaterial({ color: 0x151820 })); meterFrame.position.set(1.0, 2.1, 1.6); group.add(meterFrame);
+        const meterBar = new THREE.Mesh(new THREE.BoxGeometry(0.36, 2.4, 0.06), new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.6 })); meterBar.position.set(1.0, 1.2, 1.62); meterBar.scale.y = 0.001; meterBar.geometry.translate(0, 1.2, 0); group.add(meterBar);
+        const meterCap = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.2, 0.15), new THREE.MeshStandardMaterial({ color: 0x22262e })); meterCap.position.set(1.0, 3.5, 1.6); group.add(meterCap);
+        const pctLabel = makeLabel('0%', '#ffffff', 1.4); pctLabel.position.set(1.0, 1.0, 1.72); group.add(pctLabel);
+        group.userData.binIdx = i;
+        [[-1.2, 1.2], [1.2, 1.2], [-1.2, -1.2], [1.2, -1.2]].forEach(([wx, wz]) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.2, 12).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x111317 })); w.position.set(wx, 0.25, wz); group.add(w); });
+        binObjects.push({ name, group, fill, contam, jam, lidPivot, label, meterBar, pctLabel, color });
+      });
+
+      // Incinerator with chimney
+      const incGroup = new THREE.Group(); incGroup.position.copy(INCINERATOR_POS); scene.add(incGroup);
+      const incMat = new THREE.MeshStandardMaterial({ color: COLORS.incinerator, roughness: 0.8, metalness: 0.3 });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.6, 3.2), incMat); body.position.y = 1.3; body.castShadow = true; incGroup.add(body);
+      fireMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.8), new THREE.MeshBasicMaterial({ color: COLORS.fire, transparent: true, opacity: 0.85, side: THREE.DoubleSide })); fireMesh.position.set(0, 1.3, 1.61); incGroup.add(fireMesh);
+      const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.7, 4.5, 16), incMat); chimney.position.set(0, 4.0, 0); chimney.castShadow = true; incGroup.add(chimney);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.9, 0.8, 16), new THREE.MeshStandardMaterial({ color: 0x222 })); cap.position.set(0, 6.35, 0); incGroup.add(cap);
+      incLight = new THREE.PointLight(0xff4400, 0.9, 14); incLight.position.set(0, 2.2, 0); incGroup.add(incLight);
+      const incLabel = makeLabel('INCINERATOR', '#ffaa77', 4.2); incLabel.position.set(0, 3.4, 1.8); incGroup.add(incLabel);
+
+      // Incoming item group
+      itemGroup = new THREE.Group(); itemGroup.position.copy(ITEM_SPAWN_POS); scene.add(itemGroup);
+      itemMesh = createWasteItem(); itemGroup.add(itemMesh);
+      compBars = MATERIALS.map((m, i) => { const bar = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1, 0.45), new THREE.MeshStandardMaterial({ color: COLORS[m], emissive: 0x000000, emissiveIntensity: 0 })); const angle = (i / 5) * Math.PI * 2; bar.position.set(Math.cos(angle) * 1.5, 0.55, Math.sin(angle) * 1.5); bar.scale.y = 0.001; itemGroup.add(bar); return bar; });
+      itemLabel = makeLabel('INCOMING', '#ffffff'); itemLabel.position.set(0, 2.5, 0); itemGroup.add(itemLabel);
+
+      // Truck, excavator and waste pile
+      initTruck();
+      initWasteChunk();
+      initExcavator();
+      // Robotic arm
+      initArm();
+    }
+
+    function initTruck() {
+      truckGroup = new THREE.Group(); truckGroup.position.copy(TRUCK_PARK_POS); scene.add(truckGroup);
+      const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1c1f26, metalness: 0.5, roughness: 0.5 });
+      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x5a6a7d, metalness: 0.35, roughness: 0.55 });
+      const bedMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.3, roughness: 0.6 });
+      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111317 });
+      const wheelGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.45, 18); wheelGeo.rotateX(Math.PI / 2);
+      // chassis
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.55, 2.6), chassisMat); chassis.position.set(-0.5, 0.8, 0); chassis.castShadow = true; truckGroup.add(chassis);
+      // cab
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.6), bodyMat); cab.position.set(3.0, 2.0, 0); cab.castShadow = true; truckGroup.add(cab);
+      const cabWindow = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.0, 2.0), new THREE.MeshStandardMaterial({ color: 0x88aacc, transparent: true, opacity: 0.5, metalness: 0.8, roughness: 0.1 })); cabWindow.position.set(4.2, 2.3, 0); truckGroup.add(cabWindow);
+      // dump bed hinged at rear
+      trailerPivot = new THREE.Group(); trailerPivot.position.set(-4.0, 1.35, 0); truckGroup.add(trailerPivot);
+      trailerMesh = new THREE.Mesh(new THREE.BoxGeometry(5.8, 1.25, 2.55), bedMat); trailerMesh.geometry.translate(2.9, 0.62, 0); trailerMesh.castShadow = true; trailerPivot.add(trailerMesh);
+      // tailgate
+      const tailgate = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 2.55), new THREE.MeshStandardMaterial({ color: 0x3a4048 })); tailgate.position.set(0, 0.65, 0); trailerPivot.add(tailgate);
+      // wheels
+      [[2.8, 0.5, 1.3], [2.8, 0.5, -1.3], [-2.8, 0.5, 1.3], [-2.8, 0.5, -1.3], [-3.8, 0.5, 1.3], [-3.8, 0.5, -1.3]].forEach(([x, y, z]) => { const w = new THREE.Mesh(wheelGeo, wheelMat); w.position.set(x, y, z); w.castShadow = true; truckGroup.add(w); });
+      const truckLabel = makeLabel('DUMP TRUCK', '#bbbbbb', 4.5); truckLabel.position.set(0, 3.8, 0); truckGroup.add(truckLabel);
+    }
+
+    function initWasteChunk() {
+      const chunk = new THREE.Group(); chunk.position.set(-34.5, 0, 2); scene.add(chunk);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.9 });
+      for (let i = 0; i < 40; i++) {
+        const geo = new THREE.DodecahedronGeometry(0.35 + Math.random() * 0.35, 0);
+        const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: new THREE.Color().setHSL(0.1 + Math.random() * 0.15, 0.3, 0.35 + Math.random() * 0.15), roughness: 0.9 }));
+        m.position.set((Math.random() - 0.5) * 4.5, Math.random() * 1.2, (Math.random() - 0.5) * 3.5);
+        m.scale.setScalar(0.6 + Math.random() * 0.8);
+        m.castShadow = true; m.receiveShadow = true;
+        chunk.add(m);
+      }
+      const chunkLabel = makeLabel('WASTE PILE', '#aaaaaa', 5.0); chunkLabel.position.set(0, 2.8, 0); chunk.add(chunkLabel);
+    }
+
+    function initExcavator() {
+      excavatorGroup = new THREE.Group(); excavatorGroup.position.set(-30.0, 0, 0.9); scene.add(excavatorGroup);
+      const yellow = new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.45, metalness: 0.25 });
+      const dark = new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.75 });
+      const steel = new THREE.MeshStandardMaterial({ color: 0x555b66, roughness: 0.6, metalness: 0.4 });
+      // tracks
+      const tracks = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.9, 2.6), dark); tracks.position.y = 0.45; tracks.castShadow = true; excavatorGroup.add(tracks);
+      const trackL = new THREE.Mesh(new THREE.BoxGeometry(3.8, 0.25, 0.4), new THREE.MeshStandardMaterial({ color: 0x111317 })); trackL.position.set(0, 0.35, 1.1); excavatorGroup.add(trackL);
+      const trackR = trackL.clone(); trackR.position.z = -1.1; excavatorGroup.add(trackR);
+      // cab/body
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.0, 2.2), yellow); cab.position.set(0.3, 1.8, 1.1); cab.castShadow = true; excavatorGroup.add(cab);
+      const windowMat = new THREE.MeshStandardMaterial({ color: 0x88aacc, transparent: true, opacity: 0.5, metalness: 0.8, roughness: 0.1 });
+      const cabWindow = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.9, 1.8), windowMat); cabWindow.position.set(1.0, 2.2, 1.1); excavatorGroup.add(cabWindow);
+      // boom
+      const boomPivot = new THREE.Group(); boomPivot.position.set(-0.2, 1.6, 1.1); excavatorGroup.add(boomPivot); excBoom = boomPivot;
+      const boom = new THREE.Mesh(new THREE.BoxGeometry(6.0, 0.45, 0.45), yellow); boom.geometry.translate(3.0, 0, 0); boom.castShadow = true; boomPivot.add(boom);
+      // stick
+      const stickPivot = new THREE.Group(); stickPivot.position.set(6.0, 0, 0); boomPivot.add(stickPivot); excStick = stickPivot;
+      const stick = new THREE.Mesh(new THREE.BoxGeometry(0.38, 4.5, 0.38), yellow); stick.geometry.translate(0, -2.25, 0); stick.castShadow = true; stickPivot.add(stick);
+      // bucket
+      const bucketPivot = new THREE.Group(); bucketPivot.position.set(0, -4.5, 1.1); stickPivot.add(bucketPivot); excBucket = bucketPivot;
+      const bucket = new THREE.Group(); bucketPivot.add(bucket);
+      const bucketShell = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.4).translate(0.7, 0.4, 0.7), steel); bucketShell.castShadow = true; bucket.add(bucketShell);
+      const bucketTeeth = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.5, 4).rotateZ(-Math.PI / 2).translate(1.4, 0.25, 0.7), steel); bucket.add(bucketTeeth);
+      // label
+      const excLabel = makeLabel('EXCAVATOR', '#f1c40f', 4.5); excLabel.position.set(0.5, 3.2, 1.1); excavatorGroup.add(excLabel);
+      // rest pose (dig side)
+      boomPivot.rotation.z = 2.7;
+      stickPivot.rotation.z = -1.1;
+      bucketPivot.rotation.z = 0.8;
+    }
+
+    function initArm() {
+      const armMat = new THREE.MeshStandardMaterial({ color: COLORS.arm, metalness: 0.6, roughness: 0.35 });
+      const jointMat = new THREE.MeshStandardMaterial({ color: COLORS.armJoint, metalness: 0.7, roughness: 0.3 });
+      armGroup = new THREE.Group(); armGroup.position.copy(ARM_BASE_POS); scene.add(armGroup);
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, 1.2, 24), armMat); base.position.y = 0.6; base.castShadow = true; armGroup.add(base);
+      const shoulderJoint = new THREE.Mesh(new THREE.SphereGeometry(0.5, 24, 24), jointMat); shoulderJoint.position.y = SHOULDER_H; armGroup.add(shoulderJoint);
+      shoulderGroup = new THREE.Group(); shoulderGroup.position.y = SHOULDER_H; armGroup.add(shoulderGroup);
+      const upperArm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, ARM_L1), armMat); upperArm.position.z = ARM_L1 / 2; upperArm.castShadow = true; shoulderGroup.add(upperArm);
+      const elbowJoint = new THREE.Mesh(new THREE.SphereGeometry(0.4, 24, 24), jointMat); elbowJoint.position.z = ARM_L1; shoulderGroup.add(elbowJoint);
+      elbowGroup = new THREE.Group(); elbowGroup.position.z = ARM_L1; shoulderGroup.add(elbowGroup);
+      const forearm = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, ARM_L2), armMat); forearm.position.z = ARM_L2 / 2; forearm.castShadow = true; elbowGroup.add(forearm);
+      const wristJoint = new THREE.Mesh(new THREE.SphereGeometry(0.35, 24, 24), jointMat); wristJoint.position.z = ARM_L2; elbowGroup.add(wristJoint);
+      wristGroup = new THREE.Group(); wristGroup.position.z = ARM_L2; elbowGroup.add(wristGroup);
+      const gripperBase = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.25, 0.5), new THREE.MeshStandardMaterial({ color: 0x555a66 })); gripperBase.position.y = 0.2; wristGroup.add(gripperBase);
+      clawL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), new THREE.MeshStandardMaterial({ color: 0x777d8a })); clawL.position.set(-0.35, 0.75, 0); wristGroup.add(clawL);
+      clawR = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.1, 0.16), new THREE.MeshStandardMaterial({ color: 0x777d8a })); clawR.position.set(0.35, 0.75, 0); wristGroup.add(clawR);
+      heldItemMesh = new THREE.Mesh(new THREE.SphereGeometry(0.7, 24, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.35 })); heldItemMesh.position.set(0, 1.2, 0); heldItemMesh.visible = false; wristGroup.add(heldItemMesh);
+      armScanner = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 2.8, 18, 1, true), new THREE.MeshBasicMaterial({ color: COLORS.scan, transparent: true, opacity: 0.45, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+      armScanner.position.set(0, -1.5, 0); armScanner.visible = false; wristGroup.add(armScanner);
     }
 
     async function api(path, opts = {}) {
-      const res = await fetch(path, {
-        ...opts,
-        headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) }
-      });
+      const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } });
       if (!res.ok) { const txt = await res.text(); throw new Error(`${res.status}: ${txt}`); }
       return res.json();
     }
 
     function updateBars(s) {
-      const stepBar = document.getElementById('step-bar');
-      const energyBar = document.getElementById('energy-bar');
-      stepBar.style.width = `${(s.step / s.max_steps) * 100}%`;
-      energyBar.style.width = `${Math.max(0, (s.energy / s.energy_max) * 100)}%`;
+      document.getElementById('step-bar').style.width = `${(s.step / s.max_steps) * 100}%`;
+      document.getElementById('energy-bar').style.width = `${Math.max(0, (s.energy / s.energy_max) * 100)}%`;
     }
 
-    function logAction(s, reward) {
-      if (!s.last_action) return;
-      const log = document.getElementById('log');
-      const entry = document.createElement('div');
-      entry.className = 'log-entry';
-      entry.innerHTML = `
-        <span class="log-step">${s.step}</span>
-        <span class="log-action">${s.last_action.replace(/_/g, ' ')}</span>
-        <span class="log-reward" style="color:${reward >= 0 ? '#7ee07e' : '#ff7e7e'}">${fmt(reward)}</span>
-        <span class="log-total">${fmt(s.total_reward)}</span>
-      `;
-      log.insertBefore(entry, log.firstChild);
-      while (log.children.length > 12) log.removeChild(log.lastChild);
-    }
-
-    function highlightAction(actionIdx) {
-      document.querySelectorAll('.action').forEach(b => b.classList.remove('active'));
-      const btn = document.querySelector(`.action[data-action="${actionIdx}"]`);
-      if (btn) {
-        btn.classList.add('active');
-        setTimeout(() => btn.classList.remove('active'), 220);
-      }
-    }
-
-    function showToastReward(actionIdx, reward) {
-      const toast = document.getElementById('action-toast');
-      toast.querySelector('.action-name').textContent = ACTION_LABELS[actionIdx];
-      const r = fmt(reward);
-      toast.querySelector('.reward').textContent = (reward >= 0 ? '+' : '') + r;
-      toast.querySelector('.reward').style.color = reward >= 0 ? '#7ee07e' : '#ff7e7e';
-      toast.style.display = 'block';
-      clearTimeout(toast._hide);
-      toast._hide = setTimeout(() => toast.style.display = 'none', 1200);
-    }
-
-    function renderState(s, stepData = null) {
-      currentState = s;
+    function updateHUD(s, stepData) {
       setText('step', `${s.step} / ${s.max_steps}`);
       setText('reward', fmt(s.total_reward));
       setText('last-action', s.last_action ? s.last_action.replace(/_/g, ' ') : '-');
       setText('holds', s.consecutive_holds);
       updateBars(s);
+      const st = s.episode_stats || {};
+      setText('stats', `C ${st.correct_sorts || 0}  W ${st.incorrect_sorts || 0}  J ${st.jams_triggered || 0}  S ${st.shipouts || 0}`);
+      renderBinMetrics(s);
+      if (stepData && s.last_action) logAction(s, stepData.reward);
+      checkBadges(s);
+      updateStatus();
+    }
 
-      const stats = s.episode_stats || {};
-      setText('stats', `✓ ${stats.correct_sorts || 0}  ✗ ${stats.incorrect_sorts || 0}  ⚠ ${stats.jams_triggered || 0}  🚚 ${stats.shipouts || 0}`);
-
-      // Bins
+    function renderBinMetrics(s) {
+      const panel = document.getElementById('bin-metrics');
+      if (panel.children.length !== 4) {
+        panel.innerHTML = '';
+        BIN_NAMES.forEach((name, i) => {
+          const row = document.createElement('div'); row.className = 'metric-row'; row.dataset.bin = i;
+          row.innerHTML = `
+            <div class="metric-head"><span class="metric-name" style="color:${cssColor(COLORS[name])}">${name.toUpperCase()}</span><span class="metric-status" id="bin-status-${i}">OK</span></div>
+            <div class="bar-row"><span class="label">Fill</span><div class="bar-track"><div class="bar-fill fill" id="bin-fill-${i}"></div></div><span class="value" id="bin-fillp-${i}">0%</span></div>
+            <div class="bar-row"><span class="label">Contam</span><div class="bar-track"><div class="bar-fill contam" id="bin-contam-${i}"></div></div><span class="value" id="bin-contamp-${i}">0%</span></div>
+          `;
+          row.onclick = () => { focusBin(i); highlightMetricRow(i); };
+          panel.appendChild(row);
+        });
+      }
       s.bins.forEach((b, i) => {
-        const obj = binObjects[i];
-        const maxH = 3.6;
-        const fillH = Math.max(b.fill_fraction * maxH, 0.001);
-        obj.fill.scale.y = fillH;
-        obj.fill.position.y = 0.2 + fillH / 2;
+        document.getElementById(`bin-fill-${i}`).style.width = `${(b.fill_fraction || 0) * 100}%`;
+        document.getElementById(`bin-fillp-${i}`).textContent = pct(b.fill_fraction);
+        document.getElementById(`bin-contam-${i}`).style.width = `${(b.contamination_fraction || 0) * 100}%`;
+        document.getElementById(`bin-contamp-${i}`).textContent = pct(b.contamination_fraction);
+        const st = document.getElementById(`bin-status-${i}`);
+        st.textContent = b.jammed ? 'JAMMED' : (b.fill_fraction > 0.9 ? 'FULL' : 'OK');
+        st.classList.toggle('jam', b.jammed);
+      });
+    }
 
-        const contamH = Math.max(b.contamination_fraction * maxH, 0.001);
-        obj.contamBar.scale.y = contamH;
-        obj.contamBar.position.y = 0.2 + contamH / 2;
+    function logAction(s, reward) {
+      const log = document.getElementById('log');
+      const entry = document.createElement('div'); entry.className = 'log-entry';
+      entry.innerHTML = `<span class="log-step">${s.step}</span><span class="log-action">${s.last_action.replace(/_/g, ' ')}</span><span class="log-reward" style="color:${reward >= 0 ? '#7ee07e' : '#ff7e7e'}">${fmt(reward)}</span><span class="log-total">${fmt(s.total_reward)}</span>`;
+      log.insertBefore(entry, log.firstChild);
+      while (log.children.length > 12) log.removeChild(log.lastChild);
+    }
 
-        if (b.jammed) {
-          obj.house.material.color.setHex(COLORS.jam);
-          obj.house.material.opacity = 0.75;
-        } else {
-          obj.house.material.color.setHex(obj.color);
-          obj.house.material.opacity = 0.4;
+    function showActionToast(actionIdx, reward) {
+      const toast = document.getElementById('action-toast');
+      toast.querySelector('.action-name').textContent = ACTION_LABELS[actionIdx];
+      const r = toast.querySelector('.reward'); r.textContent = (reward >= 0 ? '+' : '') + fmt(reward); r.style.color = reward >= 0 ? '#7ee07e' : '#ff7e7e';
+      toast.style.display = 'block'; clearTimeout(toast._hide); toast._hide = setTimeout(() => toast.style.display = 'none', 900);
+    }
+
+    function highlightAction(actionIdx) {
+      document.querySelectorAll('.action').forEach(b => b.classList.remove('active'));
+      const btn = document.querySelector(`.action[data-action="${actionIdx}"]`); if (btn) { btn.classList.add('active'); setTimeout(() => btn.classList.remove('active'), 220); }
+    }
+
+    function renderItemComposition(item) {
+      const comp = item?.observed_composition || {};
+      let maxComp = 0.0001; MATERIALS.forEach(n => maxComp = Math.max(maxComp, comp[n] || 0));
+      let domIdx = 0;
+      compBars.forEach((bar, i) => { const val = comp[MATERIALS[i]] || 0; const h = Math.max((val / maxComp) * 2.2, 0.001); bar.scale.y = h; bar.position.y = 0.2 + h / 2; bar.material.emissive.setHex(val > 1e-9 ? bar.material.color.getHex() : 0x000000); bar.material.emissiveIntensity = val > 1e-9 ? 0.3 : 0; if (val > (comp[MATERIALS[domIdx]] || 0)) domIdx = i; });
+      colorWasteGroup(itemMesh, comp, domIdx);
+    }
+
+    function renderState(s, stepData = null) {
+      currentState = s;
+      s.bins.forEach((b, i) => {
+        const obj = binObjects[i]; const maxH = 3.6;
+        const fillF = Math.max(b.fill_fraction || 0, 0);
+        const fillH = Math.max(fillF * maxH, 0.001); obj.fill.scale.y = fillH; obj.fill.position.y = 0.2 + fillH / 2;
+        const contamH = Math.max(b.contamination_fraction * maxH, 0.001); obj.contam.scale.y = contamH; obj.contam.position.y = 0.4 + contamH / 2;
+        obj.jam.material.opacity = b.jammed ? 0.65 : 0;
+        if (obj.meterBar) {
+          obj.meterBar.scale.y = Math.max(fillF, 0.001);
+          const hue = 0.33 * (1 - Math.min(fillF, 1));
+          obj.meterBar.material.color.setHSL(hue, 1, 0.5);
+          obj.meterBar.material.emissive.setHSL(hue, 1, 0.4);
+          updateLabel(obj.pctLabel, pct(fillF), fillF > 0.95 ? '#ff4444' : '#ffffff');
         }
       });
-
-      // Item composition bars
-      const comp = s.current_item?.observed_composition || {};
-      let maxComp = 0.0001;
-      MATERIALS.forEach(n => maxComp = Math.max(maxComp, comp[n] || 0));
-      let domIdx = 0;
-      compBars.forEach((bar, i) => {
-        const val = comp[MATERIALS[i]] || 0;
-        const h = Math.max((val / maxComp) * 2.2, 0.001);
-        bar.scale.y = h;
-        bar.position.y = 0.2 + h / 2;
-        bar.material.emissive.setHex(val > 1e-9 ? bar.material.color.getHex() : 0x000000);
-        bar.material.emissiveIntensity = 0.3;
-        if (val > (comp[MATERIALS[domIdx]] || 0)) domIdx = i;
-      });
-      itemMesh.material.color.setHex(compColors[domIdx]);
-      itemMesh.visible = true;
-
+      itemMesh.visible = true; renderItemComposition(s.current_item);
+      updateHUD(s, stepData);
       if (stepData) {
         const actionIdx = stepData.action !== undefined ? stepData.action : ACTION_NAMES.indexOf(s.last_action);
         highlightAction(actionIdx);
-        if (stepData.reward !== undefined) {
-          showToastReward(actionIdx, stepData.reward);
-          logAction(s, stepData.reward);
-        }
-      }
-
-      if (s.step >= s.max_steps) {
-        setText('last-action', (s.last_action ? s.last_action.replace(/_/g, ' ') : '-') + ' (episode done)');
+        if (stepData.reward !== undefined) showActionToast(actionIdx, stepData.reward);
       }
     }
 
-    function animateAction(action, fromItem, onComplete) {
-      if (activeTween) { activeTween = null; }
-      const duration = 420;
-      const startTime = performance.now();
-      const startPos = itemMesh.getWorldPosition(new THREE.Vector3());
-      let flyingItem = null;
+    function updateStatus() {
+      document.getElementById('run-led').classList.toggle('on', true);
+      document.getElementById('led-run').classList.toggle('on', !animating);
+      document.getElementById('led-auto').classList.toggle('on', autoRunning);
+      const jammed = currentState && currentState.bins.some(b => b.jammed);
+      document.getElementById('led-jam').classList.toggle('on', jammed);
+      const alarm = currentState && (currentState.step >= currentState.max_steps || currentState.energy <= 0);
+      document.getElementById('led-alarm').classList.toggle('on', alarm);
+    }
 
+    function updateClocks() {
+      const now = new Date();
+      setText('clock-wall', now.toLocaleTimeString('en-US', { hour12: false }));
+      let sim = 0; if (currentState) sim = Math.floor(currentState.step * 0.6);
+      const m = Math.floor(sim / 60).toString().padStart(2, '0');
+      const sec = (sim % 60).toString().padStart(2, '0');
+      setText('clock-sim', `${m}:${sec}`);
+    }
+
+    function checkBadges(s) {
+      const st = s.episode_stats || {};
+      const newBadges = [];
+      if (st.shipouts > 0 && !earnedBadges.has('first_shipout')) newBadges.push('first_shipout');
+      if (s.total_reward >= 500 && !earnedBadges.has('reward_500')) newBadges.push('reward_500');
+      if (s.total_reward >= 1000 && !earnedBadges.has('reward_1000')) newBadges.push('reward_1000');
+      if (s.total_reward >= 1500 && !earnedBadges.has('reward_1500')) newBadges.push('reward_1500');
+      if (s.step >= 50 && st.jams_triggered === 0 && !earnedBadges.has('jam_free')) newBadges.push('jam_free');
+      if (st.correct_sorts >= 25 && !earnedBadges.has('spot_on')) newBadges.push('spot_on');
+      if (s.bins.every(b => b.fill_fraction > 1e-9) && !earnedBadges.has('full_house')) newBadges.push('full_house');
+      if (s.step >= 100 && st.correct_sorts > st.incorrect_sorts && !earnedBadges.has('conservationist')) newBadges.push('conservationist');
+      newBadges.forEach(id => { earnedBadges.add(id); const def = BADGE_DEFS.find(b => b.id === id); addBadgeChip(def); showBadgeToast(def); });
+    }
+    function addBadgeChip(def) { const chip = document.createElement('div'); chip.className = 'badge-chip'; chip.textContent = '★ ' + def.title; chip.title = def.desc; document.getElementById('badges').appendChild(chip); }
+    function showBadgeToast(def) { const toast = document.getElementById('badge-toast'); document.getElementById('badge-title').textContent = def.title; toast.style.display = 'flex'; clearTimeout(toast._hide); toast._hide = setTimeout(() => toast.style.display = 'none', 3500); }
+
+    // Robotic arm IK and animation
+    function solveArm(targetWorld) {
+      const shoulder = ARM_BASE_POS.clone().add(new THREE.Vector3(0, SHOULDER_H, 0));
+      const t = new THREE.Vector3().subVectors(targetWorld, shoulder);
+      const r = Math.max(Math.sqrt(t.x * t.x + t.z * t.z), 0.01);
+      const h = t.y;
+      let D = Math.sqrt(r * r + h * h);
+      D = Math.min(D, ARM_L1 + ARM_L2 - 0.01);
+      const cosBeta = (D * D - ARM_L1 * ARM_L1 - ARM_L2 * ARM_L2) / (2 * ARM_L1 * ARM_L2);
+      const clamped = Math.max(-1, Math.min(1, cosBeta));
+      // negative beta -> elbow-up / cleaner reaching over the facility
+      const beta = -Math.acos(clamped);
+      const k1 = ARM_L1 + ARM_L2 * Math.cos(beta);
+      const k2 = ARM_L2 * Math.sin(beta);
+      const alpha = Math.atan2(h, r) - Math.atan2(k2, k1);
+      const theta = Math.atan2(t.x, t.z);
+      return { theta, alpha, beta };
+    }
+
+    function moveArmTo(targetWorld, duration) {
+      const sol = solveArm(targetWorld);
+      const theta = shortestAngle(armGroup.rotation.y, sol.theta);
+      const alpha = shortestAngle(shoulderGroup.rotation.x, -sol.alpha);
+      const beta = shortestAngle(elbowGroup.rotation.x, -sol.beta);
+      return Promise.all([
+        tweenPromise(armGroup.rotation, { y: theta }, duration, { easing: easeOutQuad }),
+        tweenPromise(shoulderGroup.rotation, { x: alpha }, duration, { easing: easeOutQuad }),
+        tweenPromise(elbowGroup.rotation, { x: beta }, duration, { easing: easeOutQuad })
+      ]);
+    }
+
+    function updateArmWrist() {
+      if (!wristGroup) return;
+      // keep gripper pointing down (local +y -> world -y) by summing total x rotation to PI
+      wristGroup.rotation.x = Math.PI - (shoulderGroup.rotation.x + elbowGroup.rotation.x);
+    }
+
+    function setGripper(open) { const x = open ? 0.38 : 0.18; clawL.position.x = -x; clawR.position.x = x; }
+    function animateGripper(open, duration) {
+      return new Promise(resolve => {
+        const targetX = open ? 0.38 : 0.18; const startL = clawL.position.x, startR = clawR.position.x; const start = performance.now();
+        function update(time) {
+          const t = Math.min((time - start) / duration, 1); const e = easeOutQuad(t);
+          clawL.position.x = startL + (-targetX - startL) * e; clawR.position.x = startR + (targetX - startR) * e;
+          if (t < 1) requestAnimationFrame(update); else resolve();
+        }
+        requestAnimationFrame(update);
+      });
+    }
+    function pickItem(fromItem) { const comp = fromItem?.observed_composition || {}; let domIdx = 0; MATERIALS.forEach((m, i) => { if ((comp[m] || 0) > (comp[MATERIALS[domIdx]] || 0)) domIdx = i; }); heldItemMesh.material.color.setHex(COLORS[MATERIALS[domIdx]]); heldItemMesh.visible = true; itemMesh.visible = false; }
+    function releaseItem() { heldItemMesh.visible = false; itemMesh.visible = true; }
+
+    function slideItemToPick() {
+      isSliding = true; itemMesh.visible = true; itemGroup.position.copy(ITEM_SPAWN_POS); itemGroup.rotation.set(0,0,0);
+      return new Promise(resolve => {
+        const start = performance.now(); const startPos = ITEM_SPAWN_POS.clone(); const endPos = ITEM_PICK_POS.clone();
+        function slide(time) {
+          const t = Math.min((time - start) / 700, 1); const e = easeInOutQuad(t);
+          itemGroup.position.lerpVectors(startPos, endPos, e);
+          itemGroup.rotation.y = t * Math.PI * 3;
+          if (t < 1) requestAnimationFrame(slide); else { isSliding = false; resolve(); }
+        }
+        requestAnimationFrame(slide);
+      });
+    }
+
+    function openBinLid(i, open, duration) { const target = open ? -0.9 : 0; return tweenPromise(binObjects[i].lidPivot.rotation, { x: target }, duration, { easing: easeOutQuad }); }
+
+    function spawnBurst(pos, color, count = 14) {
+      for (let i = 0; i < count; i++) {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.16), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+        mesh.position.copy(pos);
+        const theta = Math.random() * Math.PI * 2; const phi = Math.random() * Math.PI; const speed = 0.03 + Math.random() * 0.07;
+        mesh.userData.velocity = new THREE.Vector3(Math.sin(phi) * Math.cos(theta) * speed, Math.cos(phi) * speed + 0.04, Math.sin(phi) * Math.sin(theta) * speed);
+        mesh.userData.life = 1.0; scene.add(mesh); burstParticles.push(mesh);
+      }
+    }
+    function createFallingItem(startPos, endPos, color) {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.7, 16, 16), new THREE.MeshStandardMaterial({ color, roughness: 0.35 })); mesh.position.copy(startPos); mesh.castShadow = true; scene.add(mesh);
+      fallingItems.push({ mesh, start: startPos.clone(), end: endPos.clone(), startTime: performance.now(), duration: 350, color });
+    }
+    function spawnLoadParticles(count = 3) {
+      if (!excBucket) return;
+      const origin = new THREE.Vector3(); excBucket.getWorldPosition(origin);
+      const target = new THREE.Vector3(); if (trailerMesh) trailerMesh.getWorldPosition(target); target.y += 0.8;
+      const color = Math.random() > 0.5 ? 0x888888 : 0x6cb556;
+      for (let i = 0; i < count; i++) {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
+        mesh.position.copy(origin); mesh.position.x += (Math.random() - 0.5) * 0.5; mesh.position.y += (Math.random() - 0.5) * 0.3; mesh.position.z += (Math.random() - 0.5) * 0.5;
+        fallingItems.push({ mesh, start: mesh.position.clone(), end: target.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.8, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 1.2)), startTime: performance.now(), duration: 500 + Math.random() * 250, color });
+        scene.add(mesh);
+      }
+    }
+    async function animateExcavatorLoad() {
+      if (!excBoom || !excStick || !excBucket) return;
+      // dig scoop
+      await Promise.all([
+        tweenPromise(excBoom.rotation, { z: 2.85 }, 800, { easing: easeInOutQuad }),
+        tweenPromise(excStick.rotation, { z: -1.3 }, 800, { easing: easeInOutQuad }),
+        tweenPromise(excBucket.rotation, { z: 1.05 }, 800, { easing: easeInOutQuad })
+      ]);
+      // lift and swing over truck, dropping waste
+      await new Promise(resolve => {
+        const startTime = performance.now(); const duration = 1800;
+        const b0 = 2.85, b1 = 0.35;
+        const s0 = -1.3, s1 = -1.6;
+        const k0 = 1.05, k1 = -0.7;
+        function tick(time) {
+          const t = Math.min((time - startTime) / duration, 1); const e = easeInOutQuad(t);
+          excBoom.rotation.z = b0 + (b1 - b0) * e;
+          excStick.rotation.z = s0 + (s1 - s0) * e;
+          excBucket.rotation.z = k0 + (k1 - k0) * e;
+          if (t > 0.45 && t < 0.9) spawnLoadParticles(2);
+          if (t < 1) requestAnimationFrame(tick); else resolve();
+        }
+        requestAnimationFrame(tick);
+      });
+      await wait(300);
+      // return to rest
+      await Promise.all([
+        tweenPromise(excBoom.rotation, { z: 2.7 }, 1000, { easing: easeInOutQuad }),
+        tweenPromise(excStick.rotation, { z: -1.1 }, 1000, { easing: easeInOutQuad }),
+        tweenPromise(excBucket.rotation, { z: 0.8 }, 1000, { easing: easeInOutQuad })
+      ]);
+    }
+
+    function spawnSmoke(pos, count, color = 0x555555) {
+      for (let i = 0; i < count; i++) {
+        const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.25 + Math.random()*0.3, 8, 8), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.4 }));
+        mesh.position.copy(pos); mesh.position.x += (Math.random()-0.5)*0.8; mesh.position.z += (Math.random()-0.5)*0.8;
+        mesh.userData.velocity = new THREE.Vector3((Math.random()-0.5)*0.015, 0.03 + Math.random()*0.04, (Math.random()-0.5)*0.015);
+        mesh.userData.life = 2.5 + Math.random()*2; mesh.userData.grow = 0.008 + Math.random()*0.008;
+        scene.add(mesh); smokeParticles.push(mesh);
+      }
+    }
+    function igniteIncinerator() { incineratorActive = true; spawnSmoke(new THREE.Vector3(INCINERATOR_POS.x, 6.0, INCINERATOR_POS.z), 12, 0x333333); spawnSmoke(new THREE.Vector3(INCINERATOR_POS.x, 1.5, INCINERATOR_POS.z), 6, 0xff6600); }
+
+    async function animateAction(action, fromItem) {
+      const homeTarget = new THREE.Vector3(ITEM_PICK_POS.x, 5.0, ITEM_PICK_POS.z);
+      const itemHover = new THREE.Vector3(ITEM_PICK_POS.x, 3.2, ITEM_PICK_POS.z);
+      const itemPos = ITEM_PICK_POS.clone();
+      const itemWrist = itemPos.clone(); itemWrist.y += 1.2;
+      setGripper(true); await moveArmTo(homeTarget, 300);
       if (action >= 0 && action < 4) {
-        // Sort to bin
-        const endPos = binPositions[action];
-        const color = COLORS[BIN_NAMES[action]];
-        flyingItem = itemMesh.clone();
-        flyingItem.material = itemMesh.material.clone();
-        flyingItem.material.color.setHex(color);
-        flyingItem.position.copy(startPos);
-        flyingItem.scale.setScalar(1);
-        scene.add(flyingItem);
-        itemMesh.visible = false;
-        activeTween = { type: 'fly', startTime, duration, startPos, endPos, flyingItem, onComplete };
+        await moveArmTo(itemHover, 180); await moveArmTo(itemWrist, 160); await animateGripper(false, 60); pickItem(fromItem);
+        await moveArmTo(itemHover, 140);
+        const binPos = binPositions[action].clone(); const binHover = binPos.clone(); binHover.y = 4.2; const binDrop = binPos.clone(); binDrop.y = 2.6;
+        await moveArmTo(binHover, 400); await openBinLid(action, true, 200); await moveArmTo(binDrop, 220);
+        await animateGripper(true, 60);
+        const worldDrop = new THREE.Vector3(); heldItemMesh.getWorldPosition(worldDrop); releaseItem();
+        createFallingItem(worldDrop, new THREE.Vector3(binPos.x, 0.6, binPos.z), COLORS[BIN_NAMES[action]]);
+        spawnBurst(new THREE.Vector3(binPos.x, 0.7, binPos.z), COLORS[BIN_NAMES[action]]);
+        await moveArmTo(binHover, 160); await openBinLid(action, false, 220);
       } else if (action === 4) {
-        // Reject to landfill
-        flyingItem = itemMesh.clone();
-        flyingItem.material = itemMesh.material.clone();
-        flyingItem.material.color.setHex(0x555555);
-        flyingItem.position.copy(startPos);
-        scene.add(flyingItem);
-        itemMesh.visible = false;
-        activeTween = { type: 'fly', startTime, duration, startPos, endPos: landfillPos, flyingItem, onComplete };
+        await moveArmTo(itemHover, 180); await moveArmTo(itemWrist, 160); await animateGripper(false, 60); pickItem(fromItem);
+        await moveArmTo(itemHover, 140);
+        const incPos = new THREE.Vector3(INCINERATOR_POS.x, 2.4, INCINERATOR_POS.z);
+        const incHover = incPos.clone(); incHover.y = 4.5;
+        await moveArmTo(incHover, 420); await moveArmTo(incPos, 240); await animateGripper(true, 60);
+        const worldDrop = new THREE.Vector3(); heldItemMesh.getWorldPosition(worldDrop); releaseItem();
+        createFallingItem(worldDrop, new THREE.Vector3(incPos.x, 1.0, incPos.z), 0x555555);
+        spawnBurst(new THREE.Vector3(incPos.x, 1.1, incPos.z), 0x555555, 10);
+        igniteIncinerator();
+        await moveArmTo(incHover, 180);
       } else if (action === 5) {
-        // Hold — bounce the item
-        activeTween = { type: 'hold', startTime, duration: 300, startY: itemMesh.position.y, onComplete };
+        const holdPos = itemPos.clone(); holdPos.y = 2.4;
+        await moveArmTo(holdPos, 240);
+        const s0 = shoulderGroup.rotation.x, e0 = elbowGroup.rotation.x; const start = performance.now();
+        await new Promise(resolve => { function wiggle(time) { const t = Math.min((time - start) / 400, 1); shoulderGroup.rotation.x = s0 + 0.12 * Math.sin(t * Math.PI * 4); elbowGroup.rotation.x = e0 - 0.08 * Math.sin(t * Math.PI * 4); if (t < 1) requestAnimationFrame(wiggle); else resolve(); } requestAnimationFrame(wiggle); });
       } else if (action === 6) {
-        // Scan — beam and glow
-        scannerBeam.visible = true;
-        scannerBeam.position.set(startPos.x, 3.8, startPos.z);
-        itemMesh.material.emissive.setHex(COLORS.scan);
-        itemMesh.material.emissiveIntensity = 0.7;
-        activeTween = { type: 'scan', startTime, duration: 400, onComplete };
-      } else {
-        onComplete();
+        const scanHover = itemPos.clone(); scanHover.y = 3.0;
+        await moveArmTo(scanHover, 220);
+        armScanner.visible = true; armScanner.material.opacity = 0.6;
+        itemMesh.children.forEach(c => { if (c.userData.isWaste) { c.material.emissive.setHex(COLORS.scan); c.material.emissiveIntensity = 0.6; } });
+        await new Promise(resolve => { const start = performance.now(); function scan(time) { const t = Math.min((time - start) / 450, 1); armScanner.material.opacity = 0.5 + 0.25 * Math.sin(t * Math.PI * 8); itemMesh.children.forEach(c => { if (c.userData.isWaste) c.material.emissiveIntensity = 0.6 - 0.5 * t; }); if (t < 1) requestAnimationFrame(scan); else resolve(); } requestAnimationFrame(scan); });
+        armScanner.visible = false; itemMesh.children.forEach(c => { if (c.userData.isWaste) c.material.emissive.setHex(0x000000); });
       }
-    }
-
-    function updateTween(time) {
-      if (!activeTween) return true;
-      const elapsed = time - activeTween.startTime;
-      const t = Math.min(elapsed / activeTween.duration, 1);
-      const ease = 1 - (1 - t) * (1 - t);
-
-      if (activeTween.type === 'fly') {
-        const { startPos, endPos, flyingItem } = activeTween;
-        const p = new THREE.Vector3().lerpVectors(startPos, endPos, ease);
-        p.y += Math.sin(t * Math.PI) * 2.8;
-        flyingItem.position.copy(p);
-        flyingItem.rotation.y += 0.18;
-        const scale = t > 0.75 ? 1 - 0.75 * ((t - 0.75) / 0.25) : 1;
-        flyingItem.scale.setScalar(Math.max(0.25, scale));
-      } else if (activeTween.type === 'hold') {
-        itemMesh.position.y = activeTween.startY + 0.25 * Math.sin(t * Math.PI * 2);
-      } else if (activeTween.type === 'scan') {
-        scannerBeam.material.opacity = 0.45 + 0.25 * Math.sin(t * Math.PI * 6);
-        itemMesh.material.emissiveIntensity = 0.7 - 0.6 * t;
-      }
-
-      if (t >= 1) {
-        if (activeTween.flyingItem) {
-          scene.remove(activeTween.flyingItem);
-          itemMesh.visible = true;
-        }
-        if (activeTween.type === 'scan') {
-          scannerBeam.visible = false;
-          itemMesh.material.emissive.setHex(0x000000);
-        }
-        const cb = activeTween.onComplete;
-        activeTween = null;
-        cb && cb();
-        return true;
-      }
-      return false;
+      await moveArmTo(homeTarget, 280);
     }
 
     async function createSession() {
-      stopAuto();
-      animating = false; activeTween = null;
-      document.getElementById('log').innerHTML = '';
+      stopAuto(); animating = true; tweens = []; burstParticles = []; fallingItems = []; smokeParticles = [];
+      if (armGroup) { armGroup.rotation.y = 0; shoulderGroup.rotation.x = 0; elbowGroup.rotation.x = 0; }
+      if (truckTimer) { clearInterval(truckTimer); truckTimer = null; }
+      document.getElementById('log').innerHTML = ''; document.getElementById('badges').innerHTML = ''; earnedBadges.clear();
       document.getElementById('loading').classList.remove('hidden');
       const data = await api('/session', { method: 'POST' });
-      sessionId = data.session_id;
-      currentState = data.state;
-      renderState(currentState);
-      document.getElementById('loading').classList.add('hidden');
+      sessionId = data.session_id; renderState(data.state);
+      await slideItemToPick();
+      document.getElementById('loading').classList.add('hidden'); animating = false;
+      truckTimer = setInterval(dispatchTruck, 30000); dispatchTruck();
     }
 
     async function step(action) {
-      if (animating || !sessionId || (currentState && (currentState.step >= currentState.max_steps))) return;
-      animating = true;
-      const fromItem = currentState.current_item;
+      if (animating || !sessionId || (currentState && currentState.step >= currentState.max_steps)) return;
+      animating = true; const fromItem = currentState.current_item;
       const data = await api(`/session/${sessionId}/step`, { method: 'POST', body: JSON.stringify({ action }) });
-      await new Promise(resolve => animateAction(action, fromItem, resolve));
-      renderState(data.state, { action, reward: data.reward });
+      await animateAction(action, fromItem); renderState(data.state, { action, reward: data.reward });
+      if (action !== 5 && action !== 6) await slideItemToPick();
       animating = false;
     }
 
     async function predict() {
-      if (animating || !sessionId || (currentState && (currentState.step >= currentState.max_steps))) return;
-      animating = true;
-      const fromItem = currentState.current_item;
+      if (animating || !sessionId || (currentState && currentState.step >= currentState.max_steps)) return;
+      animating = true; const fromItem = currentState.current_item;
       const data = await api(`/session/${sessionId}/predict`, { method: 'POST' });
-      await new Promise(resolve => animateAction(data.action, fromItem, resolve));
-      renderState(data.state, { action: data.action, reward: data.reward });
+      await animateAction(data.action, fromItem); renderState(data.state, { action: data.action, reward: data.reward });
+      if (data.action !== 5 && data.action !== 6) await slideItemToPick();
       animating = false;
     }
 
     async function autoStep() {
       if (!autoRunning || !sessionId) return;
       if (currentState && currentState.step >= currentState.max_steps) { stopAuto(); return; }
-      if (!animating) {
-        try {
-          await predict();
-        } catch (e) { stopAuto(); console.error(e); }
-      }
-      if (autoRunning) {
-        autoTimeout = setTimeout(autoStep, autoInterval);
-      }
+      if (!animating) { try { await predict(); } catch (e) { stopAuto(); console.error(e); } }
+      if (autoRunning) autoTimeout = setTimeout(autoStep, autoInterval);
     }
+    function stopAuto() { autoRunning = false; if (autoTimeout) { clearTimeout(autoTimeout); autoTimeout = null; } document.getElementById('btn-auto').textContent = 'AUTO RUN'; }
+    function toggleAuto() { if (autoRunning) stopAuto(); else { autoRunning = true; document.getElementById('btn-auto').textContent = 'STOP AUTO'; autoStep(); } }
 
-    function stopAuto() {
-      autoRunning = false;
-      if (autoTimeout) { clearTimeout(autoTimeout); autoTimeout = null; }
-      document.getElementById('btn-auto').textContent = 'Auto run';
-    }
-    function toggleAuto() {
-      if (autoRunning) { stopAuto(); }
-      else {
-        autoRunning = true;
-        document.getElementById('btn-auto').textContent = 'Stop auto';
-        autoStep();
+    // Truck dispatch
+    async function moveTruckTo(pos, duration) { return tweenPromise(truckGroup.position, { x: pos.x, y: pos.y, z: pos.z }, duration, { easing: easeInOutQuad }); }
+    async function tiltTruckTo(angle, duration) { return tweenPromise(trailerPivot.rotation, { z: angle }, duration, { easing: easeOutQuad }); }
+    function spawnTruckParticles() {
+      const origin = new THREE.Vector3(); trailerMesh.getWorldPosition(origin); origin.y += 1.2;
+      for (let i = 0; i < 18; i++) {
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0x888888 : 0x6cb556, transparent: true, opacity: 0.9 }));
+        mesh.position.copy(origin); mesh.position.x += (Math.random() - 0.5) * 1.5; mesh.position.z += (Math.random() - 0.5) * 1.2;
+        mesh.userData.velocity = new THREE.Vector3((Math.random() - 0.2) * 0.06, -0.02 - Math.random() * 0.04, (Math.random() - 0.5) * 0.03);
+        mesh.userData.life = 1.2; scene.add(mesh); burstParticles.push(mesh);
       }
     }
+    async function dispatchTruck() {
+      if (truckRunning) return; truckRunning = true;
+      await animateExcavatorLoad();
+      await moveTruckTo(TRUCK_DUMP_POS, 1600);
+      await tiltTruckTo(0.45, 600); spawnTruckParticles(); await wait(300); spawnTruckParticles(); await wait(300); spawnTruckParticles(); await wait(500);
+      await tiltTruckTo(0, 500);
+      await moveTruckTo(TRUCK_PARK_POS, 1600);
+      truckRunning = false;
+    }
 
-    // UI wiring
-    document.getElementById('btn-reset').onclick = createSession;
-    document.getElementById('btn-predict').onclick = predict;
-    document.getElementById('btn-auto').onclick = toggleAuto;
-    document.querySelectorAll('.action').forEach(btn => {
-      btn.onclick = () => step(parseInt(btn.dataset.action));
-    });
-    document.getElementById('speed').addEventListener('input', e => {
-      autoInterval = parseInt(e.target.value);
-      document.getElementById('speed-val').textContent = autoInterval + 'ms';
-    });
+    // Camera and labels
+    function setCamera(name) {
+      let pos, target;
+      switch (name) {
+        case 'line': pos = new THREE.Vector3(1.5, 7, 14); target = new THREE.Vector3(1.5, 1.2, 2); break;
+        case 'bins': pos = new THREE.Vector3(0, 8, -8); target = new THREE.Vector3(0, 2, -3); break;
+        case 'truck': pos = new THREE.Vector3(-8, 7, 10); target = new THREE.Vector3(-12, 2, 2); break;
+        case 'hopper': pos = new THREE.Vector3(-10, 8, 8); target = new THREE.Vector3(-8, 2, 2); break;
+        case 'top': pos = new THREE.Vector3(2, 36, 0.1); target = new THREE.Vector3(2, 0, 0); break;
+        default: pos = new THREE.Vector3(2, 16, 28); target = new THREE.Vector3(2, 2, 1); break;
+      }
+      tweenPromise(camera.position, { x: pos.x, y: pos.y, z: pos.z }, 800, { easing: easeInOutQuad });
+      tweenPromise(controls.target, { x: target.x, y: target.y, z: target.z }, 800, { easing: easeInOutQuad });
+    }
+    function focusBin(i) {
+      const x = BIN_X[i];
+      tweenPromise(camera.position, { x: x, y: 10, z: 4 }, 700, { easing: easeInOutQuad });
+      tweenPromise(controls.target, { x: x, y: 2, z: -3 }, 700, { easing: easeInOutQuad });
+    }
+    function zoomCamera(factor) {
+      const dir = new THREE.Vector3().subVectors(camera.position, controls.target).multiplyScalar(factor);
+      const newPos = new THREE.Vector3().addVectors(controls.target, dir);
+      tweenPromise(camera.position, { x: newPos.x, y: newPos.y, z: newPos.z }, 400, { easing: easeOutQuad });
+    }
+    function toggleLabels() {
+      labelsVisible = !labelsVisible;
+      document.getElementById('btn-labels').textContent = labelsVisible ? 'Labels: ON' : 'Labels: OFF';
+      labelMeshes.forEach(s => s.visible = labelsVisible);
+    }
+    function toggleOrbit() {
+      controls.autoRotate = !controls.autoRotate;
+      controls.autoRotateSpeed = 1.2;
+      document.getElementById('btn-orbit').classList.toggle('active', controls.autoRotate);
+      document.getElementById('btn-orbit').textContent = controls.autoRotate ? 'Orbit: ON' : 'Orbit';
+    }
 
-    // Keyboard shortcuts
-    document.addEventListener('keydown', e => {
-      if (e.target.tagName === 'INPUT') return;
-      if (e.key === ' ') { e.preventDefault(); toggleAuto(); }
-      if (e.key === 'r' || e.key === 'R') createSession();
-      if (e.key === 'p' || e.key === 'P') predict();
-    });
+    function updateParticles() {
+      for (let i = burstParticles.length - 1; i >= 0; i--) {
+        const p = burstParticles[i]; p.position.add(p.userData.velocity); p.userData.velocity.y -= 0.003; p.userData.life -= 0.025;
+        p.material.opacity = Math.max(0, p.userData.life); p.scale.setScalar(Math.max(0.2, p.userData.life));
+        if (p.userData.life <= 0) { scene.remove(p); burstParticles.splice(i, 1); }
+      }
+      for (let i = fallingItems.length - 1; i >= 0; i--) {
+        const f = fallingItems[i]; const t = Math.min((performance.now() - f.startTime) / f.duration, 1); const e = easeInOutQuad(t);
+        f.mesh.position.lerpVectors(f.start, f.end, e); f.mesh.scale.setScalar(1 - 0.4 * t);
+        if (t >= 1) { scene.remove(f.mesh); fallingItems.splice(i, 1); }
+      }
+      // smoke
+      for (let i = smokeParticles.length - 1; i >= 0; i--) {
+        const p = smokeParticles[i]; p.position.add(p.userData.velocity); p.position.x += (Math.random()-0.5)*0.01; p.position.z += (Math.random()-0.5)*0.01;
+        p.scale.addScalar(p.userData.grow); p.userData.life -= 0.012;
+        p.material.opacity = Math.max(0, p.userData.life * 0.3);
+        if (p.userData.life <= 0) { scene.remove(p); smokeParticles.splice(i, 1); }
+      }
+      if (incLight && fireMesh) { const t = performance.now(); incLight.intensity = 0.8 + 0.25 * Math.sin(t / 80) + 0.15 * Math.sin(t / 40); fireMesh.material.opacity = 0.7 + 0.15 * Math.sin(t / 60); }
+    }
 
     function animate(time) {
-      requestAnimationFrame(animate);
-      controls.update();
-      updateTween(time);
-      // idle hover for item
-      if (!activeTween || (activeTween && activeTween.type !== 'hold' && activeTween.type !== 'scan')) {
-        itemMesh.position.y = itemBaseY + 0.1 * Math.sin(time / 500);
-      }
-      // jam pulse
-      if (currentState && currentState.bins) {
-        currentState.bins.forEach((b, i) => {
-          const obj = binObjects[i];
-          const pulse = 0.55 + 0.25 * Math.sin(time / 120);
-          obj.jam.material.opacity = b.jammed ? pulse : 0;
-        });
-      }
+      requestAnimationFrame(animate); controls.update(); updateStatus();
+      for (let i = tweens.length - 1; i >= 0; i--) { tweens[i].update(time); if (!tweens[i].active) tweens.splice(i, 1); }
+      updateParticles(); updateArmWrist();
+      if (beltTexture) beltTexture.offset.y -= 0.0015;
+      if (!animating && !isSliding && itemGroup) itemGroup.position.y = ITEM_PICK_POS.y + 0.04 * Math.sin(time / 450 + 1);
+      if (currentState && currentState.bins) { currentState.bins.forEach((b, i) => { const obj = binObjects[i]; obj.jam.material.opacity = b.jammed ? 0.5 + 0.25 * Math.sin(time / 120) : 0; }); }
+      if (incineratorActive && Math.random() < 0.08) spawnSmoke(new THREE.Vector3(INCINERATOR_POS.x, 6.2, INCINERATOR_POS.z), 1, 0x444444);
       renderer.render(scene, camera);
     }
-    animate();
 
-    window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    function highlightMetricRow(idx) {
+      document.querySelectorAll('.metric-row').forEach((row, i) => {
+        row.classList.toggle('selected', i === idx);
+        if (i === idx) row.scrollIntoView({ block: 'nearest' });
+      });
+    }
 
-    createSession().catch(err => { console.error(err); document.getElementById('loading').textContent = 'Error: ' + err.message; });
+    function initUI() {
+      document.getElementById('btn-reset').onclick = createSession;
+      document.getElementById('btn-predict').onclick = predict;
+      document.getElementById('btn-auto').onclick = toggleAuto;
+      document.getElementById('btn-stop').onclick = stopAuto;
+      document.getElementById('btn-labels').onclick = toggleLabels;
+      document.getElementById('btn-orbit').onclick = toggleOrbit;
+      document.getElementById('btn-zoom-in').onclick = () => zoomCamera(0.8);
+      document.getElementById('btn-zoom-out').onclick = () => zoomCamera(1.25);
+      document.querySelectorAll('.action').forEach(btn => { btn.onclick = () => step(parseInt(btn.dataset.action)); });
+      document.querySelectorAll('.cam').forEach(btn => { btn.onclick = () => setCamera(btn.dataset.cam); });
+      document.getElementById('speed').addEventListener('input', e => { autoInterval = parseInt(e.target.value); document.getElementById('speed-val').textContent = autoInterval + 'ms'; });
+      document.addEventListener('keydown', e => { if (e.target.tagName === 'INPUT') return; if (e.key === ' ') { e.preventDefault(); toggleAuto(); } if (e.key === 'r' || e.key === 'R') createSession(); if (e.key === 'p' || e.key === 'P') predict(); });
+      let dragStart = null;
+      renderer.domElement.addEventListener('pointerdown', e => { dragStart = { x: e.clientX, y: e.clientY }; });
+      renderer.domElement.addEventListener('pointerup', e => {
+        if (!dragStart) return;
+        const dx = e.clientX - dragStart.x; const dy = e.clientY - dragStart.y; dragStart = null;
+        if (Math.sqrt(dx * dx + dy * dy) > 6) return;
+        const rect = renderer.domElement.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const hits = raycaster.intersectObjects(binObjects.map(b => b.group), true);
+        if (hits.length) {
+          let obj = hits[0].object;
+          while (obj && obj.userData.binIdx === undefined && obj.parent) obj = obj.parent;
+          if (obj && obj.userData.binIdx !== undefined) { focusBin(obj.userData.binIdx); highlightMetricRow(obj.userData.binIdx); }
+        }
+      });
+      window.addEventListener('resize', () => { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); });
+      setInterval(updateClocks, 1000); updateClocks();
+    }
+
+    initScene(); initUI(); animate();
+    createSession().catch(err => { console.error(err); document.getElementById('loading').innerHTML = 'Error: ' + err.message; });
   </script>
 </body>
 </html>
