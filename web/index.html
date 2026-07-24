@@ -272,7 +272,7 @@
         <button class="cam" data-cam="line">Line</button>
         <button class="cam" data-cam="top">Top</button>
         <button class="cam" data-cam="hopper">Hopper</button>
-        <button class="cam" data-cam="truck">Truck</button>
+        <button class="cam" data-cam="excavator">Excavator</button>
         <button class="cam" data-cam="bins">Bins</button>
         <button id="btn-zoom-out">-</button>
         <button id="btn-zoom-in">+</button>
@@ -316,13 +316,11 @@
 
     // Facility layout
     const ITEM_PICK_POS = new THREE.Vector3(1.5, 1.1, 2.0);
-    const ITEM_SPAWN_POS = new THREE.Vector3(-8.0, 2.0, 2.0);
-    const BIN_X = [-6.5, -2.2, 2.2, 6.5];
+    const ITEM_SPAWN_POS = new THREE.Vector3(-11.0, 2.0, 2.0);
+    const BIN_X = [-4.5, -0.2, 4.2, 8.5];
     const BIN_Z = -3.0;
-    const INCINERATOR_POS = new THREE.Vector3(13.0, 0, -3.0);
-    const TRUCK_PARK_POS = new THREE.Vector3(-22, 0, 2.0);
-    const TRUCK_DUMP_POS = new THREE.Vector3(-12, 0, 2.0);
-    const ARM_BASE_POS = new THREE.Vector3(9.5, 0.5, -1.0);
+    const INCINERATOR_POS = new THREE.Vector3(15.0, 0, -3.0);
+    const ARM_BASE_POS = new THREE.Vector3(11.5, 0.5, -1.0);
     const ARM_L1 = 8.5, ARM_L2 = 8.5, SHOULDER_H = 1.0;
 
     let sessionId = null;
@@ -337,8 +335,8 @@
     let fallingItems = [];
     let smokeParticles = [];
     let beltTexture = null;
-    let truckRunning = false;
-    let truckTimer = null;
+    let loadRunning = false;
+    let loadTimer = null;
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
     let labelsVisible = true;
@@ -352,7 +350,6 @@
     let itemGroup, itemMesh, compBars = [], itemLabel;
     let binObjects = [];
     let binPositions = BIN_X.map(x => new THREE.Vector3(x, 2.0, BIN_Z));
-    let truckGroup, trailerPivot, trailerMesh;
     let excavatorGroup, excBoom, excStick, excBucket;
     let labelMeshes = [];
     let armGroup, shoulderGroup, elbowGroup, wristGroup, clawL, clawR, heldItemMesh, armScanner;
@@ -454,12 +451,12 @@
 
     function initScene() {
       scene = new THREE.Scene(); scene.background = new THREE.Color(COLORS.floor); scene.fog = new THREE.Fog(COLORS.floor, 45, 120);
-      camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 150);
-      camera.position.set(2, 16, 28);
+      camera = new THREE.PerspectiveCamera(64, window.innerWidth / window.innerHeight, 0.1, 150);
+      camera.position.set(-2.0, 16, 28);
       renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
       renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       document.getElementById('canvas-container').appendChild(renderer.domElement);
-      controls = new OrbitControls(camera, renderer.domElement); controls.target.set(2, 2, 1); controls.enableDamping = true; controls.maxPolarAngle = Math.PI / 2 - 0.02;
+      controls = new OrbitControls(camera, renderer.domElement); controls.target.set(-2.0, 2, 1); controls.enableDamping = true; controls.maxPolarAngle = Math.PI / 2 - 0.02;
 
       const ambient = new THREE.AmbientLight(0xffffff, 0.42); scene.add(ambient);
       const sun = new THREE.DirectionalLight(0xffffff, 0.85); sun.position.set(16, 34, 18); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.camera.left = -40; sun.shadow.camera.right = 40; sun.shadow.camera.top = 40; sun.shadow.camera.bottom = -40; scene.add(sun);
@@ -486,11 +483,11 @@
       const leftRearPillar = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 22), wallMat); leftRearPillar.position.set(-40, 4, -24); scene.add(leftRearPillar);
       const leftFrontPillar = new THREE.Mesh(new THREE.BoxGeometry(1, 8, 26), wallMat); leftFrontPillar.position.set(-40, 4, 16); scene.add(leftFrontPillar);
       const right = new THREE.Mesh(new THREE.BoxGeometry(1, 22, 70), wallMat); right.position.set(40, 11, -2); right.receiveShadow = true; scene.add(right);
-      const dockLabel = makeLabel('TRUCK DOCK', '#bbbbbb', 5.0); dockLabel.position.set(-20, 6, 2); scene.add(dockLabel);
+      const dockLabel = makeLabel('LOADING AREA', '#bbbbbb', 5.0); dockLabel.position.set(-18, 6, -3); scene.add(dockLabel);
       for (let x = -35; x <= 35; x += 12) { const truss = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 62), new THREE.MeshStandardMaterial({ color: 0x252a33 })); truss.position.set(x, 20.5, -2); scene.add(truss); }
 
       // Receiving hopper
-      const hopper = new THREE.Group(); hopper.position.set(-8.0, 0, 2); scene.add(hopper);
+      const hopper = new THREE.Group(); hopper.position.set(-11.0, 0, 2); scene.add(hopper);
       const hopMat = new THREE.MeshStandardMaterial({ color: 0x2c3038, metalness: 0.35, roughness: 0.5 });
       [[0,1.1,1.4], [0,1.1,-1.4]].forEach(([x,y,z]) => { const w = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.2, 0.2), hopMat); w.position.set(x,y,z); hopper.add(w); });
       [[-1.6,1.1,0], [1.6,1.1,0]].forEach(([x,y,z]) => { const w = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.2, 3), hopMat); w.position.set(x,y,z); hopper.add(w); });
@@ -500,7 +497,7 @@
       const hopTop = makeLabel('RECEIVING', '#aaaaaa'); hopTop.position.set(0, 3.4, 0); hopper.add(hopTop);
 
       // Slide chute
-      const slideStart = new THREE.Vector3(-7.0, 1.6, 2);
+      const slideStart = new THREE.Vector3(-10.0, 1.6, 2);
       const slideEnd = new THREE.Vector3(1.5, 0.5, 2);
       const slideLen = slideStart.distanceTo(slideEnd);
       const slide = new THREE.Mesh(new THREE.BoxGeometry(slideLen, 0.15, 1.6), new THREE.MeshStandardMaterial({ color: 0x3a3f48, metalness: 0.4, roughness: 0.5 }));
@@ -513,11 +510,11 @@
       // Main conveyor belt
       beltTexture = makeTexture(256, 64, (ctx, w, h) => { ctx.fillStyle = '#2c3038'; ctx.fillRect(0,0,w,h); ctx.fillStyle = '#3c4149'; for (let y=0;y<h;y+=16) ctx.fillRect(0, y, w, 7); ctx.strokeStyle = '#252930'; ctx.lineWidth = 2; ctx.strokeRect(0,0,w,h); });
       beltTexture.wrapS = THREE.RepeatWrapping; beltTexture.wrapT = THREE.RepeatWrapping; beltTexture.repeat.set(1, 10);
-      const belt = new THREE.Mesh(new THREE.BoxGeometry(18, 0.35, 4.6), new THREE.MeshStandardMaterial({ map: beltTexture, roughness: 0.7, metalness: 0.2 }));
-      belt.position.set(-3, 0.175, 2); belt.receiveShadow = true; scene.add(belt);
+      const belt = new THREE.Mesh(new THREE.BoxGeometry(20, 0.35, 4.6), new THREE.MeshStandardMaterial({ map: beltTexture, roughness: 0.7, metalness: 0.2 }));
+      belt.position.set(-4.5, 0.175, 2); belt.receiveShadow = true; scene.add(belt);
       const railMat = new THREE.MeshStandardMaterial({ color: 0x4a4f58, metalness: 0.55, roughness: 0.4 });
-      for (const z of [-0.4, 4.4]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(18, 0.6, 0.25), railMat); rail.position.set(-3, 0.55, z); rail.castShadow = true; scene.add(rail); }
-      for (let x = -12; x <= 6; x += 2) { const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 4.2, 14), new THREE.MeshStandardMaterial({ color: 0x353a43, metalness: 0.45 })); roller.rotation.z = Math.PI / 2; roller.position.set(x, 0.4, 2); scene.add(roller); }
+      for (const z of [-0.4, 4.4]) { const rail = new THREE.Mesh(new THREE.BoxGeometry(20, 0.6, 0.25), railMat); rail.position.set(-4.5, 0.55, z); rail.castShadow = true; scene.add(rail); }
+      for (let x = -13; x <= 7; x += 2) { const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 4.2, 14), new THREE.MeshStandardMaterial({ color: 0x353a43, metalness: 0.45 })); roller.rotation.z = Math.PI / 2; roller.position.set(x, 0.4, 2); scene.add(roller); }
 
       // Sorting bins with lids
       const binGroup = new THREE.Group(); scene.add(binGroup);
@@ -563,38 +560,15 @@
       compBars = MATERIALS.map((m, i) => { const bar = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1, 0.45), new THREE.MeshStandardMaterial({ color: COLORS[m], emissive: 0x000000, emissiveIntensity: 0 })); const angle = (i / 5) * Math.PI * 2; bar.position.set(Math.cos(angle) * 1.5, 0.55, Math.sin(angle) * 1.5); bar.scale.y = 0.001; itemGroup.add(bar); return bar; });
       itemLabel = makeLabel('INCOMING', '#ffffff'); itemLabel.position.set(0, 2.5, 0); itemGroup.add(itemLabel);
 
-      // Truck, excavator and waste pile
-      initTruck();
+      // Excavator and waste pile
       initWasteChunk();
       initExcavator();
       // Robotic arm
       initArm();
     }
 
-    function initTruck() {
-      truckGroup = new THREE.Group(); truckGroup.position.copy(TRUCK_PARK_POS); scene.add(truckGroup);
-      const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1c1f26, metalness: 0.5, roughness: 0.5 });
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x5a6a7d, metalness: 0.35, roughness: 0.55 });
-      const bedMat = new THREE.MeshStandardMaterial({ color: 0x4a5568, metalness: 0.3, roughness: 0.6 });
-      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111317 });
-      const wheelGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.45, 18); wheelGeo.rotateX(Math.PI / 2);
-      // chassis
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(9.5, 0.55, 2.6), chassisMat); chassis.position.set(-0.5, 0.8, 0); chassis.castShadow = true; truckGroup.add(chassis);
-      // cab
-      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 2.6), bodyMat); cab.position.set(3.0, 2.0, 0); cab.castShadow = true; truckGroup.add(cab);
-      const cabWindow = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.0, 2.0), new THREE.MeshStandardMaterial({ color: 0x88aacc, transparent: true, opacity: 0.5, metalness: 0.8, roughness: 0.1 })); cabWindow.position.set(4.2, 2.3, 0); truckGroup.add(cabWindow);
-      // dump bed hinged at rear
-      trailerPivot = new THREE.Group(); trailerPivot.position.set(-4.0, 1.35, 0); truckGroup.add(trailerPivot);
-      trailerMesh = new THREE.Mesh(new THREE.BoxGeometry(5.8, 1.25, 2.55), bedMat); trailerMesh.geometry.translate(2.9, 0.62, 0); trailerMesh.castShadow = true; trailerPivot.add(trailerMesh);
-      // tailgate
-      const tailgate = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.3, 2.55), new THREE.MeshStandardMaterial({ color: 0x3a4048 })); tailgate.position.set(0, 0.65, 0); trailerPivot.add(tailgate);
-      // wheels
-      [[2.8, 0.5, 1.3], [2.8, 0.5, -1.3], [-2.8, 0.5, 1.3], [-2.8, 0.5, -1.3], [-3.8, 0.5, 1.3], [-3.8, 0.5, -1.3]].forEach(([x, y, z]) => { const w = new THREE.Mesh(wheelGeo, wheelMat); w.position.set(x, y, z); w.castShadow = true; truckGroup.add(w); });
-      const truckLabel = makeLabel('DUMP TRUCK', '#bbbbbb', 4.5); truckLabel.position.set(0, 3.8, 0); truckGroup.add(truckLabel);
-    }
-
     function initWasteChunk() {
-      const chunk = new THREE.Group(); chunk.position.set(-34.5, 0, 2); scene.add(chunk);
+      const chunk = new THREE.Group(); chunk.position.set(-22.0, 0, -3); scene.add(chunk);
       const mat = new THREE.MeshStandardMaterial({ color: 0x4a4a4a, roughness: 0.9 });
       for (let i = 0; i < 40; i++) {
         const geo = new THREE.DodecahedronGeometry(0.35 + Math.random() * 0.35, 0);
@@ -608,7 +582,7 @@
     }
 
     function initExcavator() {
-      excavatorGroup = new THREE.Group(); excavatorGroup.position.set(-30.0, 0, 0.9); scene.add(excavatorGroup);
+      excavatorGroup = new THREE.Group(); excavatorGroup.position.set(-18.0, 0, -4.1); scene.add(excavatorGroup);
       const yellow = new THREE.MeshStandardMaterial({ color: 0xf1c40f, roughness: 0.45, metalness: 0.25 });
       const dark = new THREE.MeshStandardMaterial({ color: 0x2c3038, roughness: 0.75 });
       const steel = new THREE.MeshStandardMaterial({ color: 0x555b66, roughness: 0.6, metalness: 0.4 });
@@ -883,12 +857,12 @@
     function spawnLoadParticles(count = 3) {
       if (!excBucket) return;
       const origin = new THREE.Vector3(); excBucket.getWorldPosition(origin);
-      const target = new THREE.Vector3(); if (trailerMesh) trailerMesh.getWorldPosition(target); target.y += 0.8;
+      const target = new THREE.Vector3(ITEM_SPAWN_POS.x, 2.2, ITEM_SPAWN_POS.z);
       const color = Math.random() > 0.5 ? 0x888888 : 0x6cb556;
       for (let i = 0; i < count; i++) {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9 }));
         mesh.position.copy(origin); mesh.position.x += (Math.random() - 0.5) * 0.5; mesh.position.y += (Math.random() - 0.5) * 0.3; mesh.position.z += (Math.random() - 0.5) * 0.5;
-        fallingItems.push({ mesh, start: mesh.position.clone(), end: target.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.8, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 1.2)), startTime: performance.now(), duration: 500 + Math.random() * 250, color });
+        fallingItems.push({ mesh, start: mesh.position.clone(), end: target.clone().add(new THREE.Vector3((Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 1.0)), startTime: performance.now(), duration: 500 + Math.random() * 250, color });
         scene.add(mesh);
       }
     }
@@ -900,7 +874,7 @@
         tweenPromise(excStick.rotation, { z: -1.3 }, 800, { easing: easeInOutQuad }),
         tweenPromise(excBucket.rotation, { z: 1.05 }, 800, { easing: easeInOutQuad })
       ]);
-      // lift and swing over truck, dropping waste
+      // lift and swing over receiving hopper, dropping waste
       await new Promise(resolve => {
         const startTime = performance.now(); const duration = 1800;
         const b0 = 2.85, b1 = 0.35;
@@ -982,14 +956,14 @@
     async function createSession() {
       stopAuto(); animating = true; tweens = []; burstParticles = []; fallingItems = []; smokeParticles = [];
       if (armGroup) { armGroup.rotation.y = 0; shoulderGroup.rotation.x = 0; elbowGroup.rotation.x = 0; }
-      if (truckTimer) { clearInterval(truckTimer); truckTimer = null; }
+      if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
       document.getElementById('log').innerHTML = ''; document.getElementById('badges').innerHTML = ''; earnedBadges.clear();
       document.getElementById('loading').classList.remove('hidden');
       const data = await api('/session', { method: 'POST' });
       sessionId = data.session_id; renderState(data.state);
       await slideItemToPick();
       document.getElementById('loading').classList.add('hidden'); animating = false;
-      truckTimer = setInterval(dispatchTruck, 30000); dispatchTruck();
+      loadTimer = setInterval(dispatchLoad, 30000); dispatchLoad();
     }
 
     async function step(action) {
@@ -1019,26 +993,11 @@
     function stopAuto() { autoRunning = false; if (autoTimeout) { clearTimeout(autoTimeout); autoTimeout = null; } document.getElementById('btn-auto').textContent = 'AUTO RUN'; }
     function toggleAuto() { if (autoRunning) stopAuto(); else { autoRunning = true; document.getElementById('btn-auto').textContent = 'STOP AUTO'; autoStep(); } }
 
-    // Truck dispatch
-    async function moveTruckTo(pos, duration) { return tweenPromise(truckGroup.position, { x: pos.x, y: pos.y, z: pos.z }, duration, { easing: easeInOutQuad }); }
-    async function tiltTruckTo(angle, duration) { return tweenPromise(trailerPivot.rotation, { z: angle }, duration, { easing: easeOutQuad }); }
-    function spawnTruckParticles() {
-      const origin = new THREE.Vector3(); trailerMesh.getWorldPosition(origin); origin.y += 1.2;
-      for (let i = 0; i < 18; i++) {
-        const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.18), new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0x888888 : 0x6cb556, transparent: true, opacity: 0.9 }));
-        mesh.position.copy(origin); mesh.position.x += (Math.random() - 0.5) * 1.5; mesh.position.z += (Math.random() - 0.5) * 1.2;
-        mesh.userData.velocity = new THREE.Vector3((Math.random() - 0.2) * 0.06, -0.02 - Math.random() * 0.04, (Math.random() - 0.5) * 0.03);
-        mesh.userData.life = 1.2; scene.add(mesh); burstParticles.push(mesh);
-      }
-    }
-    async function dispatchTruck() {
-      if (truckRunning) return; truckRunning = true;
+    // Excavator loading dispatch
+    async function dispatchLoad() {
+      if (loadRunning) return; loadRunning = true;
       await animateExcavatorLoad();
-      await moveTruckTo(TRUCK_DUMP_POS, 1600);
-      await tiltTruckTo(0.45, 600); spawnTruckParticles(); await wait(300); spawnTruckParticles(); await wait(300); spawnTruckParticles(); await wait(500);
-      await tiltTruckTo(0, 500);
-      await moveTruckTo(TRUCK_PARK_POS, 1600);
-      truckRunning = false;
+      loadRunning = false;
     }
 
     // Camera and labels
@@ -1046,11 +1005,11 @@
       let pos, target;
       switch (name) {
         case 'line': pos = new THREE.Vector3(1.5, 7, 14); target = new THREE.Vector3(1.5, 1.2, 2); break;
-        case 'bins': pos = new THREE.Vector3(0, 8, -8); target = new THREE.Vector3(0, 2, -3); break;
-        case 'truck': pos = new THREE.Vector3(-8, 7, 10); target = new THREE.Vector3(-12, 2, 2); break;
-        case 'hopper': pos = new THREE.Vector3(-10, 8, 8); target = new THREE.Vector3(-8, 2, 2); break;
-        case 'top': pos = new THREE.Vector3(2, 36, 0.1); target = new THREE.Vector3(2, 0, 0); break;
-        default: pos = new THREE.Vector3(2, 16, 28); target = new THREE.Vector3(2, 2, 1); break;
+        case 'bins': pos = new THREE.Vector3(2, 8, -8); target = new THREE.Vector3(2, 2, -3); break;
+        case 'excavator': pos = new THREE.Vector3(-12, 7, 10); target = new THREE.Vector3(-18, 2, 0); break;
+        case 'hopper': pos = new THREE.Vector3(-13, 8, 8); target = new THREE.Vector3(-11, 2, 2); break;
+        case 'top': pos = new THREE.Vector3(-2.0, 36, 0.1); target = new THREE.Vector3(-2.0, 0, 0); break;
+        default: pos = new THREE.Vector3(-2.0, 16, 28); target = new THREE.Vector3(-2.0, 2, 1); break;
       }
       tweenPromise(camera.position, { x: pos.x, y: pos.y, z: pos.z }, 800, { easing: easeInOutQuad });
       tweenPromise(controls.target, { x: target.x, y: target.y, z: target.z }, 800, { easing: easeInOutQuad });
